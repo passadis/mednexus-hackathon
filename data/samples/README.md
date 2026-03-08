@@ -13,7 +13,7 @@ These files are provided for **hackathon judges** to test the full MedNexus agen
 
 ## How to use
 
-1. Open MedNexus and select (or create) a patient
+1. Open MedNexus and select (or create) a patient by typing a new name or patient ID (e.g. P037) and pressing Enter
 2. Click **Upload** and drag in one or more of these files
 3. Watch the **Agent Chatter** pane to see each agent process the files in real time
 4. After all files are processed, the **Diagnostic Synthesis Report** will appear automatically

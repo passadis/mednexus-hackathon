@@ -290,7 +290,7 @@ Sample files are included in `data/samples/` so you can test the full pipeline i
 ### Quick Test (Live Deployment)
 
 1. Open the deployed frontend (URL provided in submission)
-2. Click any patient on the **Patient Grid** — or create a new one
+2. Click any patient on the **Patient Grid** — or create a new one by typing a name or patient ID (e.g. P037) and pressing Enter
 3. Upload the sample files from `data/samples/`:
    - `chest_xray.png` — triggers Vision Specialist
    - `bloodwork.csv` — triggers Lab analysis
