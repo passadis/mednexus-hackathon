@@ -45,6 +45,8 @@ dependencies = [
     "aiofiles>=24.1",
     "pillow>=10.4",
     "PyPDF2>=3.0",
+    # ── FHIR ──────────────────────────────────────────────────
+    "fhir.resources>=7.1",
 ]
 
 [project.optional-dependencies]

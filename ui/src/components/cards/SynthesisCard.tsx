@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, AlertTriangle, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Brain, AlertTriangle, ChevronRight, ShieldCheck, Pencil, Save, X } from 'lucide-react';
 import type { SynthesisReport } from '../../types';
 
 interface SynthesisCardProps {
@@ -8,13 +8,59 @@ interface SynthesisCardProps {
   episodeId?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
+  onSynthesisUpdated?: (updated: SynthesisReport) => void;
 }
 
-export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, approvedAt }: SynthesisCardProps) {
+export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, approvedAt, onSynthesisUpdated }: SynthesisCardProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [localApproval, setLocalApproval] = useState<{ by: string; at: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editSummary, setEditSummary] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editRecs, setEditRecs] = useState('');
 
   const isApproved = !!(approvedBy || localApproval);
+
+  const startEditing = () => {
+    if (!synthesis) return;
+    setEditSummary(synthesis.summary);
+    setEditNotes(synthesis.cross_modality_notes || '');
+    setEditRecs(synthesis.recommendations.join('\n'));
+    setEditing(true);
+  };
+
+  const cancelEditing = () => setEditing(false);
+
+  const handleSave = async () => {
+    if (!patientId || !episodeId || !synthesis) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/patients/${patientId}/episodes/${episodeId}/synthesis`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: editSummary,
+          cross_modality_notes: editNotes,
+          recommendations: editRecs.split('\n').map(r => r.trim()).filter(Boolean),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEditing(false);
+        if (onSynthesisUpdated && data.synthesis) {
+          onSynthesisUpdated(data.synthesis as SynthesisReport);
+        }
+      } else {
+        const err = await res.json().catch(() => ({ detail: 'Save failed' }));
+        alert(err.detail || 'Save failed');
+      }
+    } catch {
+      alert('Network error – could not reach server');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!patientId || !synthesis) return;
@@ -51,6 +97,35 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
           <Brain className="h-4 w-4 text-rose-600" />
         </div>
         <h3 className="text-sm font-semibold text-slate-700">Synthesis Report</h3>
+        {synthesis && !isApproved && !editing && (
+          <button
+            type="button"
+            onClick={startEditing}
+            className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            title="Edit before sign-off"
+          >
+            <Pencil className="h-3 w-3" /> Edit
+          </button>
+        )}
+        {editing && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+            >
+              <Save className="h-3 w-3" /> {isSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditing}
+              className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-50"
+            >
+              <X className="h-3 w-3" /> Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {!synthesis ? (
@@ -65,16 +140,36 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
         <div className="space-y-4">
           {/* Summary */}
           <div>
-            <p className="text-sm leading-relaxed text-slate-600">{synthesis.summary}</p>
+            {editing ? (
+              <textarea
+                value={editSummary}
+                onChange={e => setEditSummary(e.target.value)}
+                rows={4}
+                placeholder="Synthesis summary"
+                className="w-full rounded-lg border border-slate-300 p-2 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
+              />
+            ) : (
+              <p className="text-sm leading-relaxed text-slate-600">{synthesis.summary}</p>
+            )}
           </div>
 
           {/* Cross-modality notes */}
-          {synthesis.cross_modality_notes && (
+          {(synthesis.cross_modality_notes || editing) && (
             <div className="rounded-xl bg-amber-50/60 p-3 border border-amber-100">
               <p className="mb-1 text-xs font-semibold text-amber-700">Cross-Modality Notes</p>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                {synthesis.cross_modality_notes}
-              </p>
+              {editing ? (
+                <textarea
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Cross-modality notes"
+                  className="w-full rounded-lg border border-amber-200 bg-white p-2 text-xs text-amber-800 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+                />
+              ) : (
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  {synthesis.cross_modality_notes}
+                </p>
+              )}
             </div>
           )}
 
@@ -98,17 +193,27 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
           )}
 
           {/* Recommendations */}
-          {synthesis.recommendations.length > 0 && (
+          {(synthesis.recommendations.length > 0 || editing) && (
             <div>
               <p className="mb-2 text-xs font-semibold text-slate-500">Recommendations</p>
-              <ul className="space-y-1.5">
-                {synthesis.recommendations.map((rec, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                    <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-brand-500" />
-                    {rec}
-                  </li>
-                ))}
-              </ul>
+              {editing ? (
+                <textarea
+                  value={editRecs}
+                  onChange={e => setEditRecs(e.target.value)}
+                  rows={4}
+                  placeholder="One recommendation per line"
+                  className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
+                />
+              ) : (
+                <ul className="space-y-1.5">
+                  {synthesis.recommendations.map((rec, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                      <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-brand-500" />
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

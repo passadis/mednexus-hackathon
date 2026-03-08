@@ -75,6 +75,29 @@ class AzureBlobMCP(MCPServer):
             await src_blob.delete_blob()
         return f"az://{self._container}/{dest_name}"
 
+    async def delete_blobs_by_prefix(self, prefix: str) -> int:
+        """Delete all blobs whose name starts with *prefix* (incl. processed/)."""
+        count = 0
+        async with self._get_client() as client:
+            async for blob in client.list_blobs():
+                if blob.name.startswith(prefix) or blob.name.startswith(f"processed/{prefix}"):
+                    await client.delete_blob(blob.name)
+                    count += 1
+        return count
+
+    async def delete_blobs(self, blob_names: list[str]) -> int:
+        """Delete specific blobs by name (checks root and processed/)."""
+        count = 0
+        async with self._get_client() as client:
+            for name in blob_names:
+                for path in (name, f"processed/{name}"):
+                    try:
+                        await client.delete_blob(path)
+                        count += 1
+                    except Exception:
+                        pass
+        return count
+
     async def healthcheck(self) -> bool:
         try:
             async with self._get_client() as client:

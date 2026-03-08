@@ -14,9 +14,10 @@ interface ClinicalWorkspaceProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  onDeleteEpisode?: (episodeId: string) => void;
 }
 
-export function ClinicalWorkspace({ context, loading, error, onRefresh }: ClinicalWorkspaceProps) {
+export function ClinicalWorkspace({ context, loading, error, onRefresh, onDeleteEpisode }: ClinicalWorkspaceProps) {
   if (!context && !loading && !error) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-slate-50 p-8">
@@ -141,6 +142,7 @@ export function ClinicalWorkspace({ context, loading, error, onRefresh }: Clinic
               isActive={ep.episode_id === activeEpisodeId}
               defaultOpen={idx === 0}
               onActivate={() => handleActivateEpisode(ep.episode_id)}
+              onDelete={onDeleteEpisode ? () => onDeleteEpisode(ep.episode_id) : undefined}
             />
           ))}
         </div>

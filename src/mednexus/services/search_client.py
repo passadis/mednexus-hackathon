@@ -137,6 +137,67 @@ async def search_patient_documents(
     )
 
 
+# ── Deletion functions ───────────────────────────────────────
+
+
+async def delete_patient_documents(patient_id: str) -> int:
+    """Delete all search documents for a patient. Returns count deleted."""
+    if not settings.azure_search_endpoint or not settings.azure_search_key:
+        return 0
+
+    async with SearchClient(
+        endpoint=settings.azure_search_endpoint,
+        index_name=settings.azure_search_index,
+        credential=AzureKeyCredential(settings.azure_search_key),
+    ) as client:
+        # Collect all document IDs for this patient
+        doc_ids: list[str] = []
+        async for doc in await client.search(
+            search_text="*",
+            filter=f"patient_id eq '{patient_id}'",
+            select=["id"],
+            top=1000,
+        ):
+            doc_ids.append(doc["id"])
+
+        if not doc_ids:
+            return 0
+
+        batch = [{"@search.action": "delete", "id": did} for did in doc_ids]
+        await client.upload_documents(documents=batch)
+        logger.info("search_documents_deleted", patient_id=patient_id, count=len(doc_ids))
+        return len(doc_ids)
+
+
+async def delete_documents_by_uris(uris: list[str]) -> int:
+    """Delete search documents whose metadata_storage_path matches any of the given URIs."""
+    if not uris or not settings.azure_search_endpoint or not settings.azure_search_key:
+        return 0
+
+    async with SearchClient(
+        endpoint=settings.azure_search_endpoint,
+        index_name=settings.azure_search_index,
+        credential=AzureKeyCredential(settings.azure_search_key),
+    ) as client:
+        doc_ids: list[str] = []
+        for uri in uris:
+            async for doc in await client.search(
+                search_text="*",
+                filter=f"metadata_storage_path eq '{uri}'",
+                select=["id"],
+                top=100,
+            ):
+                doc_ids.append(doc["id"])
+
+        if not doc_ids:
+            return 0
+
+        batch = [{"@search.action": "delete", "id": did} for did in doc_ids]
+        await client.upload_documents(documents=batch)
+        logger.info("search_documents_deleted_by_uri", count=len(doc_ids))
+        return len(doc_ids)
+
+
 # ── Indexing functions ───────────────────────────────────────
 
 

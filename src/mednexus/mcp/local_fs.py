@@ -68,5 +68,28 @@ class LocalFileSystemMCP(MCPServer):
         shutil.move(str(src), str(dst))
         return str(dst)
 
+    def delete_files_by_prefix(self, prefix: str) -> int:
+        """Delete all files whose name starts with *prefix* (incl. _processed/)."""
+        count = 0
+        for folder in (self._root, self._processed):
+            if not folder.exists():
+                continue
+            for entry in folder.iterdir():
+                if entry.is_file() and entry.name.upper().startswith(prefix.upper()):
+                    entry.unlink(missing_ok=True)
+                    count += 1
+        return count
+
+    def delete_files(self, filenames: list[str]) -> int:
+        """Delete specific files by name from root and _processed."""
+        count = 0
+        for name in filenames:
+            for folder in (self._root, self._processed):
+                path = folder / name
+                if path.exists():
+                    path.unlink()
+                    count += 1
+        return count
+
     async def healthcheck(self) -> bool:
         return self._root.exists()

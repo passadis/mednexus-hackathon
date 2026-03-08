@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, FileText, CheckCircle, Clock, AlertCircle, Search, Stethoscope } from 'lucide-react';
+import { Users, Activity, FileText, CheckCircle, Clock, AlertCircle, Search, Stethoscope, Trash2 } from 'lucide-react';
 import type { PatientContext } from '../types';
 
 interface PatientGridProps {
   onSelectPatient: (id: string) => void;
+  onDeletePatient?: (id: string) => void;
 }
 
 type SummaryStatus = 'approved' | 'synthesised' | 'processing' | 'new';
@@ -29,10 +30,11 @@ const STATUS_CONFIG: Record<SummaryStatus, { label: string; color: string; icon:
   new: { label: 'New', color: 'bg-slate-50 text-slate-500 ring-slate-200', icon: AlertCircle },
 };
 
-export function PatientGrid({ onSelectPatient }: PatientGridProps) {
+export function PatientGrid({ onSelectPatient, onDeletePatient }: PatientGridProps) {
   const [patients, setPatients] = useState<PatientContext[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -168,8 +170,54 @@ export function PatientGrid({ onSelectPatient }: PatientGridProps) {
                 key={p.id}
                 type="button"
                 onClick={() => onSelectPatient(p.patient.patient_id)}
-                className="card-hover text-left transition-all duration-200 hover:scale-[1.01]"
+                className="card-hover text-left transition-all duration-200 hover:scale-[1.01] relative group"
               >
+                {/* Delete button */}
+                {onDeletePatient && (
+                  <div
+                    className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {confirmDelete === p.patient.patient_id ? (
+                      <div className="flex items-center gap-1 bg-white rounded-lg shadow-lg border border-red-200 px-2 py-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeletePatient(p.patient.patient_id);
+                            setPatients((prev) => prev.filter((x) => x.patient.patient_id !== p.patient.patient_id));
+                            setConfirmDelete(null);
+                          }}
+                          className="text-[10px] font-bold text-red-600 hover:text-red-800 px-1"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDelete(null);
+                          }}
+                          className="text-[10px] font-medium text-slate-400 hover:text-slate-600 px-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDelete(p.patient.patient_id);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/90 shadow-sm border border-slate-200 hover:border-red-300 hover:bg-red-50 transition"
+                        title="Delete patient"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-slate-400 hover:text-red-500" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 {/* Status bar */}
                 <div
                   className={`flex items-center gap-1.5 rounded-t-xl px-4 py-1.5 text-xs font-medium ring-1 ring-inset ${cfg.color}`}

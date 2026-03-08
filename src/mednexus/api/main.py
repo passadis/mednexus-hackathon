@@ -115,6 +115,12 @@ class _EpisodeCreateRequest(_PydBaseModel):
     label: str = ""
 
 
+class _SynthesisEditRequest(_PydBaseModel):
+    summary: str | None = None
+    cross_modality_notes: str | None = None
+    recommendations: list[str] | None = None
+
+
 # ── Health ───────────────────────────────────────────────────
 
 
@@ -207,6 +213,133 @@ async def activate_episode(patient_id: str, episode_id: str) -> dict[str, Any]:
     ctx.active_episode_id = ep.episode_id
     await cosmos.upsert_context(ctx)
     return {"active_episode_id": ep.episode_id, "label": ep.label}
+
+
+# ── Delete Operations (Cascading) ────────────────────────────
+
+
+async def _cleanup_blobs_and_files(file_uris: list[str], patient_id: str | None = None) -> dict[str, int]:
+    """Shared helper: delete blobs + local files for a list of URIs or by patient prefix."""
+    from pathlib import Path
+
+    blob_deleted = 0
+    local_deleted = 0
+
+    # Blob cleanup
+    if settings.azure_storage_connection_string:
+        from mednexus.mcp.azure_blob import AzureBlobMCP
+
+        blob_mcp = AzureBlobMCP(settings.azure_storage_connection_string, settings.azure_storage_container)
+        if patient_id:
+            blob_deleted = await blob_mcp.delete_blobs_by_prefix(f"{patient_id}_")
+        elif file_uris:
+            blob_names = []
+            for uri in file_uris:
+                if uri.startswith("az://"):
+                    blob_names.append("/".join(uri.split("/")[3:]))
+            blob_deleted = await blob_mcp.delete_blobs(blob_names)
+
+    # Local file cleanup
+    from mednexus.mcp.local_fs import LocalFileSystemMCP
+
+    local_mcp = LocalFileSystemMCP(settings.mcp_drop_folder)
+    if patient_id:
+        local_deleted = local_mcp.delete_files_by_prefix(f"{patient_id}_")
+    elif file_uris:
+        local_names = []
+        for uri in file_uris:
+            if not uri.startswith("az://"):
+                local_names.append(Path(uri).name)
+            else:
+                local_names.append(uri.split("/")[-1])
+        local_deleted = local_mcp.delete_files(local_names)
+
+    return {"blob_deleted": blob_deleted, "local_deleted": local_deleted}
+
+
+@app.delete("/api/patients/{patient_id}")
+async def delete_patient(patient_id: str) -> dict[str, Any]:
+    """Delete a patient and cascade: Cosmos + Blob Storage + AI Search + local files."""
+    from mednexus.services.search_client import delete_patient_documents
+
+    cosmos = get_cosmos_manager()
+    ctx = await cosmos.get_context(patient_id)
+    if ctx is None:
+        raise HTTPException(404, f"Patient {patient_id} not found")
+
+    # 1. Clean up storage (blobs + local) — by prefix covers all episodes
+    storage_result = await _cleanup_blobs_and_files([], patient_id=patient_id)
+
+    # 2. Clean up AI Search index
+    search_deleted = await delete_patient_documents(patient_id)
+
+    # 3. Delete Cosmos document
+    await cosmos.delete_context(patient_id)
+
+    logger.info(
+        "patient_deleted",
+        patient_id=patient_id,
+        search_deleted=search_deleted,
+        **storage_result,
+    )
+    return {
+        "deleted": True,
+        "patient_id": patient_id,
+        "search_deleted": search_deleted,
+        **storage_result,
+    }
+
+
+@app.delete("/api/patients/{patient_id}/episodes/{episode_id}")
+async def delete_episode(patient_id: str, episode_id: str) -> dict[str, Any]:
+    """Delete a single episode and cascade: remove from Cosmos, delete its blobs + search docs."""
+    from mednexus.services.search_client import delete_documents_by_uris
+
+    cosmos = get_cosmos_manager()
+    ctx = await cosmos.get_context(patient_id)
+    if ctx is None:
+        raise HTTPException(404, f"Patient {patient_id} not found")
+
+    ep = next((e for e in ctx.episodes if e.episode_id == episode_id), None)
+    if ep is None:
+        raise HTTPException(404, f"Episode {episode_id} not found")
+
+    # 1. Clean up storage for this episode's files
+    storage_result = await _cleanup_blobs_and_files(ep.ingested_files)
+
+    # 2. Clean up AI Search for this episode's files
+    search_deleted = await delete_documents_by_uris(ep.ingested_files)
+
+    # 3. Remove episode from context
+    ctx.episodes = [e for e in ctx.episodes if e.episode_id != episode_id]
+
+    # Reassign active episode if needed
+    if ctx.active_episode_id == episode_id:
+        ctx.active_episode_id = ctx.episodes[-1].episode_id if ctx.episodes else None
+
+    # Recalculate status
+    if not ctx.episodes:
+        from mednexus.models.clinical_context import ContextStatus
+        ctx.status = ContextStatus.INTAKE
+        ctx.cross_episode_summary = None
+
+    await cosmos.upsert_context(ctx)
+
+    logger.info(
+        "episode_deleted",
+        patient_id=patient_id,
+        episode_id=episode_id,
+        search_deleted=search_deleted,
+        **storage_result,
+    )
+    return {
+        "deleted": True,
+        "patient_id": patient_id,
+        "episode_id": episode_id,
+        "remaining_episodes": len(ctx.episodes),
+        "search_deleted": search_deleted,
+        **storage_result,
+    }
 
 
 # ── File Upload & Agent Dispatch ─────────────────────────────
@@ -414,6 +547,83 @@ async def approve_synthesis(patient_id: str, body: _ApprovalRequest) -> dict[str
         "approved_by": ctx.approved_by,
         "approved_at": ctx.approved_at.isoformat() if ctx.approved_at else None,
     }
+
+
+# ── Synthesis Report Editing (pre-sign-off) ─────────────────
+
+
+@app.patch("/api/patients/{patient_id}/episodes/{episode_id}/synthesis")
+async def edit_synthesis(patient_id: str, episode_id: str, body: _SynthesisEditRequest) -> dict[str, Any]:
+    """Edit a Synthesis Report before MD sign-off."""
+    from datetime import datetime, timezone
+
+    cosmos = get_cosmos_manager()
+    ctx = await cosmos.get_context(patient_id)
+    if ctx is None:
+        raise HTTPException(404, f"Patient {patient_id} not found")
+
+    ep = next((e for e in ctx.episodes if e.episode_id == episode_id), None)
+    if ep is None:
+        raise HTTPException(404, f"Episode {episode_id} not found")
+    if ep.synthesis is None:
+        raise HTTPException(409, "No synthesis report to edit.")
+    if ep.approved_by:
+        raise HTTPException(409, "Cannot edit – episode already signed off.")
+
+    changed: list[str] = []
+    if body.summary is not None:
+        ep.synthesis.summary = body.summary
+        changed.append("summary")
+    if body.cross_modality_notes is not None:
+        ep.synthesis.cross_modality_notes = body.cross_modality_notes
+        changed.append("cross_modality_notes")
+    if body.recommendations is not None:
+        ep.synthesis.recommendations = body.recommendations
+        changed.append("recommendations")
+
+    if not changed:
+        raise HTTPException(422, "No fields provided to update.")
+
+    ep.touch()
+    ctx.log_activity(
+        agent="human",
+        action="synthesis_edited",
+        detail=f"[{ep.label}] Fields edited: {', '.join(changed)}",
+    )
+    await cosmos.upsert_context(ctx)
+
+    logger.info("synthesis_edited", patient_id=patient_id, episode_id=episode_id, fields=changed)
+    return {
+        "patient_id": patient_id,
+        "episode_id": episode_id,
+        "updated_fields": changed,
+        "synthesis": ep.synthesis.model_dump(mode="json"),
+    }
+
+
+# ── FHIR R4 Export ───────────────────────────────────────────
+
+
+@app.get("/api/patients/{patient_id}/episodes/{episode_id}/fhir")
+async def export_fhir(patient_id: str, episode_id: str) -> dict[str, Any]:
+    """Export a signed-off episode as a FHIR R4 Bundle (JSON)."""
+    from mednexus.services.fhir_export import episode_to_fhir_bundle
+
+    cosmos = get_cosmos_manager()
+    ctx = await cosmos.get_context(patient_id)
+    if ctx is None:
+        raise HTTPException(404, f"Patient {patient_id} not found")
+
+    ep = next((e for e in ctx.episodes if e.episode_id == episode_id), None)
+    if ep is None:
+        raise HTTPException(404, f"Episode {episode_id} not found")
+
+    if not ep.approved_by:
+        raise HTTPException(403, "FHIR export is only available for signed-off episodes.")
+
+    bundle = episode_to_fhir_bundle(ctx, ep)
+    logger.info("fhir_exported", patient_id=patient_id, episode_id=episode_id)
+    return bundle
 
 
 # ── Doctor Chat (Conversational Concierge) ───────────────────

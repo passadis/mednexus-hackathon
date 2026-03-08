@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Calendar, FileText, Layers, Share2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, FileText, Layers, Share2, Trash2, Download } from 'lucide-react';
 import type { Episode } from '../../types';
 import { XrayCard } from './XrayCard';
 import { TranscriptCard } from './TranscriptCard';
@@ -13,6 +13,7 @@ interface EpisodeCardProps {
   isActive: boolean;
   defaultOpen?: boolean;
   onActivate: () => void;
+  onDelete?: () => void;
 }
 
 export function EpisodeCard({
@@ -21,9 +22,11 @@ export function EpisodeCard({
   isActive,
   defaultOpen = false,
   onActivate,
+  onDelete,
 }: EpisodeCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showShare, setShowShare] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const xrayFindings = episode.findings.filter((f) => f.modality === 'radiology_image');
   const textFindings = episode.findings.filter(
@@ -84,8 +87,8 @@ export function EpisodeCard({
         )}
       </button>
 
-      {/* Activate / Share buttons */}
-      {(!isActive || episode.approved_by) && (
+      {/* Activate / Share / Delete buttons */}
+      {(!isActive || episode.approved_by || onDelete) && (
         <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-2">
           {!isActive && (
             <button
@@ -106,10 +109,71 @@ export function EpisodeCard({
                 e.stopPropagation();
                 setShowShare(true);
               }}
-              className="ml-auto flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition"
+              className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition"
             >
               <Share2 className="h-3 w-3" /> Share with Patient
             </button>
+          )}
+          {episode.approved_by && (
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const res = await fetch(`/api/patients/${patientId}/episodes/${episode.episode_id}/fhir`);
+                if (!res.ok) return;
+                const blob = new Blob([JSON.stringify(await res.json(), null, 2)], { type: 'application/fhir+json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${patientId}_${episode.episode_id}_fhir_r4.json`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition"
+            >
+              <Download className="h-3 w-3" /> FHIR R4 Export
+            </button>
+          )}
+          {onDelete && (
+            <div className="ml-auto">
+              {confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-red-500">Delete this episode?</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                      setConfirmDelete(false);
+                    }}
+                    className="text-[11px] font-bold text-red-600 hover:text-red-800"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(false);
+                    }}
+                    className="text-[11px] font-medium text-slate-400 hover:text-slate-600"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(true);
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-500 transition"
+                  title="Delete episode"
+                >
+                  <Trash2 className="h-3 w-3" /> Delete
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

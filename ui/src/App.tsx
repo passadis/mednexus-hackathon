@@ -61,6 +61,30 @@ function DoctorApp() {
     setSelectedPatientId('');
   }, []);
 
+  const handleDeletePatient = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/patients/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (selectedPatientId === id) setSelectedPatientId('');
+      }
+    } catch {
+      console.error('Failed to delete patient');
+    }
+  }, [selectedPatientId]);
+
+  const handleDeleteEpisode = useCallback(async (episodeId: string) => {
+    if (!context) return;
+    try {
+      const res = await fetch(
+        `/api/patients/${context.patient.patient_id}/episodes/${episodeId}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) refresh();
+    } catch {
+      console.error('Failed to delete episode');
+    }
+  }, [context, refresh]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar: Patient Search + Episodes */}
@@ -82,9 +106,10 @@ function DoctorApp() {
             loading={loading}
             error={error}
             onRefresh={refresh}
+            onDeleteEpisode={handleDeleteEpisode}
           />
         ) : (
-          <PatientGrid onSelectPatient={handleSelectPatient} />
+          <PatientGrid onSelectPatient={handleSelectPatient} onDeletePatient={handleDeletePatient} />
         )}
 
         {/* Right panel: Agent Chatter (only in workspace view) */}
