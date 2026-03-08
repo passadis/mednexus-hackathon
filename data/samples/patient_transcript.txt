@@ -1,0 +1,23 @@
+Patient Interview Transcript
+Date: 2026-03-05
+Interviewer: Dr. Emily Torres
+
+Patient states: "I've been having this persistent cough for about
+two weeks now. No chest pain at all — I feel fine otherwise.
+Maybe a little short of breath when I climb stairs, but I figured
+that's just because I've been less active lately."
+
+Vital signs: BP 142/90, HR 78, Temp 99.8°F, SpO2 94%
+Observation: Patient appears mildly dyspneic on exertion. 
+Mild wheezing noted on auscultation of the right lower lobe.
+
+History: 62 y/o female, former smoker (quit 8 years ago),
+history of seasonal allergies. No prior hospitalisations.
+Current medications: Lisinopril 10mg daily, Cetirizine PRN.
+
+Patient denies: chest pain, palpitations, hemoptysis, fever,
+night sweats, unintentional weight loss.
+
+Assessment: Symptoms inconsistent with stated "feeling fine" —
+dyspnea on exertion and reduced SpO2 warrant imaging to rule
+out pulmonary pathology.

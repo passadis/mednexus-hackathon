@@ -1,0 +1,20 @@
+Test,Result,Unit,Reference Range,Flag
+WBC,11.2,10^3/uL,4.5-11.0,HIGH
+RBC,4.35,10^6/uL,4.0-5.5,
+Hemoglobin,13.8,g/dL,12.0-16.0,
+Hematocrit,41.2,%,36-46,
+Platelets,245,10^3/uL,150-400,
+Neutrophils,72,%,40-70,HIGH
+Lymphocytes,18,%,20-40,LOW
+Monocytes,7,%,2-8,
+Eosinophils,2,%,1-4,
+Basophils,1,%,0-1,
+ESR,28,mm/hr,0-20,HIGH
+CRP,14.5,mg/L,0-10,HIGH
+Glucose,98,mg/dL,70-100,
+BUN,16,mg/dL,7-20,
+Creatinine,0.9,mg/dL,0.6-1.2,
+Sodium,140,mEq/L,136-145,
+Potassium,4.1,mEq/L,3.5-5.0,
+ALT,22,U/L,7-56,
+AST,28,U/L,10-40,

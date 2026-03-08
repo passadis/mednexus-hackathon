@@ -4,6 +4,20 @@
 
 Built on the **Microsoft Agent Framework** with **A2A (Agent-to-Agent)** communication, **MCP (Model Context Protocol)** for data abstraction, and **Azure AI Foundry** for intelligence.
 
+> **Hackathon Categories:** Grand Prize — Build AI Applications & Agents | Best Multi-Agent System | Best Azure Integration | Best Enterprise Solution
+
+---
+
+## Hero Technologies Used
+
+| Hackathon Requirement | How MedNexus Uses It |
+|---|---|
+| **Microsoft Agent Framework** | 5 specialized agents (Orchestrator, Clinical Sorter, Vision Specialist, Patient Historian, Diagnostic Synthesis) with a state-machine controller and async A2A event bus |
+| **Azure MCP** | MCP abstraction layer with hot-swap factory (Local FS ↔ Azure Blob), plus a full MCP SDK Clinical Data Gateway server exposing `get_patient_records` and `fetch_medical_image` tools with HIPAA audit logging |
+| **Microsoft Foundry / Azure OpenAI** | GPT-4o for multimodal vision analysis (X-rays), cross-modality synthesis, patient-facing chat, and real-time voice assistant via Azure OpenAI Realtime API |
+| **GitHub Copilot Agent Mode** | Entire project built with GitHub Copilot Agent Mode in VS Code — architecture design, agent implementations, React UI, Docker configs, and iterative debugging |
+| **Azure Deployment** | Deployed to Azure Container Apps (frontend + backend), backed by Cosmos DB, AI Search, Blob Storage, and Azure Speech Services |
+
 ---
 
 ## What is MedNexus?
@@ -47,43 +61,100 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph UI["MedNexus Command Center — React + Tailwind"]
+        PG[Patient Grid]
+        CW[Clinical Workspace]
+        AC[Agent Chatter]
+        PP[Patient Portal]
+    end
+
+    subgraph API["FastAPI Backend — REST + WebSocket"]
+        REST["REST API\n/api/patients • /upload • /approve"]
+        WS["WebSocket\n/ws/chatter"]
+        PORTAL["Portal Endpoints\n/portal/context • /portal/chat • /portal/voice"]
+    end
+
+    subgraph AGENTS["A2A Event Bus — Microsoft Agent Framework"]
+        ORCH[Orchestrator Agent]
+        CS[Clinical Sorter]
+        VS[Vision Specialist]
+        PH[Patient Historian]
+        DS[Diagnostic Synthesis]
+        ORCH <-->|task assign| CS
+        ORCH <-->|task assign| VS
+        ORCH <-->|task assign| PH
+        ORCH -->|trigger| DS
+    end
+
+    subgraph MCP["MCP Layer"]
+        GW[Clinical Data Gateway\nMCP SDK Server]
+        FACTORY["MCP Factory\nLocal FS ↔ Azure Blob"]
+        AUDIT["Audit Logger\nHIPAA-compliant JSONL"]
+    end
+
+    subgraph AZURE["Azure Services"]
+        COSMOS[(Cosmos DB\nPatient State)]
+        SEARCH[(AI Search\nRAG Index)]
+        BLOB[(Blob Storage\nMedical Files)]
+        OPENAI[Azure OpenAI\nGPT-4o Multimodal]
+        REALTIME[Azure OpenAI\nRealtime Voice]
+        SPEECH[Azure Speech\nWhisper STT]
+    end
+
+    UI -- HTTP/WS --> API
+    API --> AGENTS
+    AGENTS --> MCP
+    MCP --> AZURE
+    WS -.->|live broadcast| AC
+    CS --> GW
+    VS --> GW
+    GW --> AUDIT
+    DS --> OPENAI
+    PH --> SEARCH
+    PORTAL --> REALTIME
+```
+
+<details>
+<summary>ASCII fallback (if Mermaid doesn't render)</summary>
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                   MedNexus Command Center (React + Tailwind) │
 │  ┌──────────┐  ┌──────────────────┐  ┌───────────────────┐  │
 │  │ Patient   │  │ Clinical         │  │ Agent Chatter     │  │
-│  │ Search    │  │ Workspace Grid   │  │ (Live A2A Stream) │  │
+│  │ Grid      │  │ Workspace        │  │ (Live A2A Stream) │  │
 │  └──────────┘  └──────────────────┘  └───────────────────┘  │
 └────────────────────────┬─────────────────────────────────────┘
-                         │  WebSocket /ws/chatter
+                         │  REST + WebSocket
                          ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                     FastAPI Backend (REST + WebSocket)        │
-│  /api/patients  |  /api/patients/{id}/upload  |  /health     │
+│                     FastAPI Backend                           │
+│  /api/patients  |  /upload  |  /approve  |  /portal/*        │
 └────────────────────────┬─────────────────────────────────────┘
                          │
+           ┌─────────────┼──────────────┐
+           ▼             ▼              ▼
+     ┌───────────┐ ┌───────────┐ ┌───────────────┐
+     │ Clinical  │ │ Vision    │ │ Patient       │
+     │ Sorter    │ │ Specialist│ │ Historian     │
+     └─────┬─────┘ └─────┬─────┘ └───────┬───────┘
+           └─────────────┼───────────────┘
                          ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      A2A Event Bus                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────┐     │
-│  │ Orchestrator │◄►│ Clinical    │  │ Vision           │     │
-│  │ Agent        │  │ Sorter      │  │ Specialist       │     │
-│  └──────┬──────┘  └─────────────┘  └──────────────────┘     │
-│         │          ┌─────────────┐  ┌──────────────────┐     │
-│         ├─────────►│ Patient     │  │ Diagnostic       │     │
-│         │          │ Historian   │  │ Synthesis Agent   │     │
-│         │          └─────────────┘  └──────────────────┘     │
-└─────────┼────────────────────────────────────────────────────┘
-          │
-          ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Azure Services                                              │
-│  ┌─────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐      │
-│  │Cosmos DB│ │AI Search  │ │Blob Store │ │OpenAI/GPT │      │
-│  │(State)  │ │(RAG)      │ │(MCP)      │ │(LLM)      │      │
-│  └─────────┘ └───────────┘ └───────────┘ └───────────┘      │
-└──────────────────────────────────────────────────────────────┘
+              ┌─────────────────────┐
+              │ Diagnostic Synthesis│
+              └──────────┬──────────┘
+                         │
+    ┌────────────────────┼────────────────────┐
+    ▼          ▼         ▼         ▼          ▼
+┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐
+│CosmosDB││Search  ││Blob    ││OpenAI  ││Speech  │
+│(State) ││(RAG)   ││(MCP)   ││(GPT-4o)││(Whisper│
+└────────┘└────────┘└────────┘└────────┘└────────┘
 ```
+
+</details>
 
 ### Agent Pipeline
 
@@ -290,7 +361,46 @@ All tool invocations are **audit-logged** to `data/audit/mcp_audit.jsonl` (HIPAA
 The Synthesis Report card in the AGUI includes a prominent **"Approve and Sign-off by MD"** button. When clicked, it prompts for the physician’s name and calls `POST /api/patients/{id}/approve`. The context transitions to `APPROVED` status with full attribution (who, when, notes). This ensures no diagnostic output leaves the system without a qualified human review.
 
 ---
+## Responsible AI & Security
 
+MedNexus is designed with healthcare-grade safety and compliance in mind:
+
+| Principle | Implementation |
+|---|---|
+| **Human-in-the-Loop** | No diagnostic output leaves the system without an MD sign-off. The doctor reviews, optionally edits, and explicitly approves every Synthesis Report before it can be shared with the patient. |
+| **Patient-Scoped Data Isolation** | The MCP Clinical Data Gateway enforces per-patient access boundaries. An agent processing Patient A cannot access Patient B's files — cross-patient access is blocked at the tool level, not just the UI. |
+| **HIPAA-Compliant Audit Logging** | Every MCP tool invocation (file access, image fetch) is logged to `data/audit/mcp_audit.jsonl` with timestamp, agent ID, patient ID, tool name, and parameters. Every approval records the physician name, timestamp, and notes. |
+| **Secure Portal Access** | Patient portals are accessed via JWT tokens with configurable expiry. Tokens are scoped to a single patient and signed with a server-side secret. No login credentials are exposed to patients — just a link or QR code. |
+| **Transparent AI Reasoning** | The Agent Chatter pane shows every agent's decision chain in real time. Doctors can see what each agent found, what it decided, and why — building trust and enabling oversight. |
+| **No PII in Agent Logs** | A2A messages broadcast to the UI contain agent reasoning summaries, not raw patient data. Structured clinical findings are stored only in the patient's Cosmos DB context document. |
+
+---
+
+## Try It — Judge Testing Guide
+
+Sample files are included in `data/samples/` so you can test the full pipeline immediately.
+
+### Quick Test (Live Deployment)
+
+1. Open the deployed frontend (URL provided in submission)
+2. Click any patient on the **Patient Grid** — or create a new one
+3. Upload the sample files from `data/samples/`:
+   - `chest_xray.png` — triggers Vision Specialist
+   - `bloodwork.csv` — triggers Lab analysis
+   - `patient_transcript.txt` — triggers audio/text processing
+   - `referral_letter.pdf` — triggers PDF extraction + RAG indexing
+4. Watch the **Agent Chatter** pane — you'll see each agent classify, analyze, and hand off in real time
+5. Once all agents finish, the **Synthesis Report** card appears with cross-modality findings
+6. Click **"Approve and Sign-off by MD"** → enter any name → report is finalized
+7. Click **"Share"** → copy the link or scan the QR code
+8. Open the link on your phone → see the **Patient Portal** with plain-language summary
+9. Try the **text chat** ("What does my X-ray show?") and the **voice assistant** (tap the mic)
+
+### Local Setup
+
+See [Quick Start](#quick-start) below. After `docker compose up --build`, open `http://localhost:5173` and follow the same steps above.
+
+---
 ## Development
 
 ```bash
@@ -320,10 +430,17 @@ mypy src/
 | **Speech** | Azure Speech / Whisper |
 | **Backend** | FastAPI + Uvicorn |
 | **Frontend** | React 19 + Vite 6 + TypeScript + Tailwind CSS |
-| **Infrastructure** | Docker, Azure Functions |
+| **Infrastructure** | Docker, Azure Container Apps, Azure Functions |
+| **Dev Tools** | VS Code, GitHub Copilot Agent Mode, GitHub |
+
+---
+
+## Built With GitHub Copilot
+
+This project was built end-to-end using **GitHub Copilot Agent Mode** in VS Code — from initial architecture design and agent implementations to the React UI, Docker configurations, Azure deployment scripts, and iterative debugging. Copilot Agent Mode was used not just for code generation but as an active development partner: researching APIs, diagnosing race conditions, auditing CSS for UI bugs, and reasoning through multi-agent orchestration patterns.
 
 ---
 
 ## License
 
-This project was built for [hackathon name]. See LICENSE for details.
+This project was built for the **AI Dev Days Hackathon 2026**. See LICENSE for details.
