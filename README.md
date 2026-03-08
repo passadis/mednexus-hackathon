@@ -34,6 +34,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 - **Patients get clarity, not confusion.** Once approved, the doctor shares a secure link (or QR code). The patient opens a mobile-friendly portal that explains findings in plain, everyday language — no medical jargon.
 - **Patients can ask questions.** The portal includes a text chat and a real-time voice assistant. Patients can ask *"What does this mean for me?"* and get answers scoped only to their own clinical data.
 - **Full episode-based workflow.** Each visit is an episode. A patient can have many episodes over time, and each one tracks its own files, findings, synthesis, approval, and actions — giving doctors a longitudinal view.
+- **EHR-ready FHIR R4 export.** Signed-off episodes can be exported as standards-compliant FHIR R4 transaction Bundles (Patient + DiagnosticReport + Observations), ready to feed into downstream EHR systems.
 - **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
 
 ### Who it's for
@@ -51,10 +52,11 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
  2. Selects a patient → Uploads files (X-ray, PDF, audio, labs)
  3. AI agents process in parallel → Findings appear in real time
  4. Cross-modality Synthesis Report is generated automatically
- 5. Doctor reviews, edits if needed, and signs off
- 6. Clicks "Share" → QR code / link generated with a secure token
- 7. Patient opens the portal on their phone
- 8. Reads plain-language summary → Chats or voice-asks follow-up questions
+ 5. Doctor reviews → edits summary/recommendations if needed → signs off
+ 6. Downloads FHIR R4 Bundle for EHR integration (optional)
+ 7. Clicks "Share" → QR code / link generated with a secure token
+ 8. Patient opens the portal on their phone
+ 9. Reads plain-language summary → Chats or voice-asks follow-up questions
 ```
 
 ---
@@ -104,7 +106,8 @@ mednexus-hackathon/
 │   │   ├── cosmos_client.py     # Cosmos DB state manager
 │   │   ├── llm_client.py        # Azure OpenAI (multimodal)
 │   │   ├── search_client.py     # AI Search RAG queries
-│   │   └── speech_client.py     # Whisper transcription
+│   │   ├── speech_client.py     # Whisper transcription
+│   │   └── fhir_export.py       # FHIR R4 Bundle export
 │   ├── functions/
 │   │   └── function_app.py # Azure Functions blob trigger
 │   └── config.py           # pydantic-settings configuration
@@ -229,10 +232,21 @@ docker run -p 8000:8000 --env-file .env mednexus
 | `GET` | `/api/patients` | List all patient contexts |
 | `GET` | `/api/patients/{id}` | Retrieve a patient's Clinical Context |
 | `POST` | `/api/patients/{id}` | Create a new patient context |
+| `DELETE` | `/api/patients/{id}` | Cascade-delete patient (Cosmos + Blob + AI Search) |
 | `POST` | `/api/patients/{id}/upload` | Upload a medical file → triggers agent pipeline |
-| `POST` | `/api/patients/{id}/approve` | **Phase 3:** MD sign-off on Synthesis Report (Human-in-the-Loop) |
+| `POST` | `/api/patients/{id}/episodes` | Create a new episode for a patient |
+| `GET` | `/api/patients/{id}/episodes` | List all episodes for a patient |
+| `PATCH` | `/api/patients/{id}/episodes/{eid}/activate` | Set a specific episode as the active episode |
+| `DELETE` | `/api/patients/{id}/episodes/{eid}` | Delete an episode and its associated data |
+| `PATCH` | `/api/patients/{id}/episodes/{eid}/synthesis` | Edit Synthesis Report before MD sign-off |
+| `POST` | `/api/patients/{id}/approve` | MD sign-off on Synthesis Report (Human-in-the-Loop) |
+| `GET` | `/api/patients/{id}/episodes/{eid}/fhir` | **FHIR R4 Export** — download signed-off episode as a FHIR Bundle |
+| `POST` | `/api/chat` | Doctor Chat with GPT-4o function-calling |
 | `WS` | `/ws/chatter` | Live Agent-to-Agent message stream |
 | `GET` | `/api/chatter/history` | Recent A2A messages for late-joining clients |
+| `GET` | `/portal/{token}` | Patient Share Portal (JWT-secured) |
+| `POST` | `/portal/{token}/chat` | Patient portal text chat |
+| `GET` | `/portal/{token}/voice-config` | Voice assistant config for Patient Voice Portal |
 
 ---
 
@@ -264,8 +278,19 @@ A proper MCP-protocol server (`clinical_gateway.py`) built with the Python `mcp`
 
 All tool invocations are **audit-logged** to `data/audit/mcp_audit.jsonl` (HIPAA-compliant structured entries) via the `MCPAuditLogger` class.
 
-### Phase 3: Human-in-the-Loop MD Sign-Off
-The Synthesis Report card in the AGUI includes a prominent **"Approve and Sign-off by MD"** button. When clicked, it prompts for the physician’s name and calls `POST /api/patients/{id}/approve`. The context transitions to `APPROVED` status with full attribution (who, when, notes). This ensures no diagnostic output leaves the system without a qualified human review.
+### Synthesis Report Editing (Pre-Sign-Off)
+Before approving, doctors can **edit the Synthesis Report** directly in the UI — clicking the pencil icon switches the summary, cross-modality notes, and recommendations into editable textareas. Edits are persisted via `PATCH /api/patients/{id}/episodes/{eid}/synthesis` and logged as a `synthesis_edited` audit entry with the specific fields changed. Once an episode is signed off, further edits are blocked (HTTP 409). This ensures the final approved report reflects the physician's clinical judgment.
+
+### Human-in-the-Loop MD Sign-Off
+The Synthesis Report card in the AGUI includes a prominent **"Approve and Sign-off by MD"** button. When clicked, it prompts for the physician's name and calls `POST /api/patients/{id}/approve`. The context transitions to `APPROVED` status with full attribution (who, when, notes). This ensures no diagnostic output leaves the system without a qualified human review.
+
+### FHIR R4 Export
+Once an episode is signed off, doctors can **export it as a FHIR R4 transaction Bundle** (`GET /api/patients/{id}/episodes/{eid}/fhir`). The bundle contains:
+- **Patient** resource with demographics
+- **DiagnosticReport** resource from the Synthesis Report (summary, recommendations, timestamps)
+- **Observation** resources for each clinical finding, LOINC-coded by modality (radiology → `18748-4`, clinical text → `34133-9`, audio transcript → `75032-5`, lab → `26436-6`)
+
+The export is only available for approved episodes (returns HTTP 403 otherwise), ensuring only physician-reviewed data enters downstream EHR systems. Built with the `fhir.resources` library for standards-compliant serialization.
 
 ---
 ## Responsible AI & Security
@@ -299,9 +324,11 @@ Sample files are included in `data/samples/` so you can test the full pipeline i
 4. Watch the **Agent Chatter** pane — you'll see each agent classify, analyze, and hand off in real time
 5. Once all agents finish, the **Synthesis Report** card appears with cross-modality findings
 6. Click **"Approve and Sign-off by MD"** → enter any name → report is finalized
-7. Click **"Share"** → copy the link or scan the QR code
-8. Open the link on your phone → see the **Patient Portal** with plain-language summary
-9. Try the **text chat** ("What does my X-ray show?") and the **voice assistant** (tap the mic)
+7. (Optional) Click the **✏️ Edit** button on the Synthesis Report to adjust the summary or recommendations before sign-off
+8. After approval, click **"FHIR R4 Export"** → downloads a standards-compliant FHIR Bundle JSON
+9. Click **"Share"** → copy the link or scan the QR code
+10. Open the link on your phone → see the **Patient Portal** with plain-language summary
+11. Try the **text chat** ("What does my X-ray show?") and the **voice assistant** (tap the mic)
 
 ### Local Setup
 
@@ -334,7 +361,8 @@ mypy src/
 | **State** | Azure Cosmos DB (NoSQL API) |
 | **Search / RAG** | Azure AI Search |
 | **Storage** | Azure Blob Storage |
-| **Speech** | Azure Speech / Whisper |
+| **Speech** | Azure OpenAI Whisper |
+| **Interoperability** | FHIR R4 (fhir.resources) |
 | **Backend** | FastAPI + Uvicorn |
 | **Frontend** | React 19 + Vite 6 + TypeScript + Tailwind CSS |
 | **Infrastructure** | Docker, Azure Container Apps, Azure Functions |
