@@ -6,6 +6,45 @@ Built on the **Microsoft Agent Framework** with **A2A (Agent-to-Agent)** communi
 
 ---
 
+## What is MedNexus?
+
+A doctor receives an X-ray, a lab report, a voice recording from the patient, and a 40-page PDF history — all for the same visit. Today, they piece those together manually. MedNexus does it for them.
+
+**MedNexus is an AI-powered clinical copilot that reads every file a doctor drops in — images, documents, audio, labs — and produces a single, unified Diagnostic Synthesis Report in seconds.**
+
+### What it does
+
+- **Drop files, get answers.** Upload an X-ray, a PDF referral, a patient voice note, and lab results. Five specialized AI agents analyze each one in parallel and merge the findings into one coherent report.
+- **Catch what humans miss.** The system cross-references modalities automatically — if a patient says *"no chest pain"* but the X-ray shows a pulmonary infiltrate, MedNexus flags the discrepancy.
+- **Doctor stays in control.** Nothing leaves the system without an MD sign-off. The doctor reviews the synthesis, approves it, and only then can it be shared.
+- **Patients get clarity, not confusion.** Once approved, the doctor shares a secure link (or QR code). The patient opens a mobile-friendly portal that explains findings in plain, everyday language — no medical jargon.
+- **Patients can ask questions.** The portal includes a text chat and a real-time voice assistant. Patients can ask *"What does this mean for me?"* and get answers scoped only to their own clinical data.
+- **Full episode-based workflow.** Each visit is an episode. A patient can have many episodes over time, and each one tracks its own files, findings, synthesis, approval, and actions — giving doctors a longitudinal view.
+- **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
+
+### Who it's for
+
+| Role | What they get |
+|---|---|
+| **Doctor** | A command center that turns raw multimodal files into a reviewed, approved diagnostic report — faster and with fewer blind spots |
+| **Patient** | A personal portal with plain-language results, a chat to ask questions, and a voice assistant — accessible from any phone via a shared link |
+| **Hospital** | Audit-logged, HIPAA-aware data access with doctor attribution on every clinical decision |
+
+### The workflow in 30 seconds
+
+```
+ 1. Doctor opens MedNexus → Patient Grid shows all patients at a glance
+ 2. Selects a patient → Uploads files (X-ray, PDF, audio, labs)
+ 3. AI agents process in parallel → Findings appear in real time
+ 4. Cross-modality Synthesis Report is generated automatically
+ 5. Doctor reviews, edits if needed, and signs off
+ 6. Clicks "Share" → QR code / link generated with a secure token
+ 7. Patient opens the portal on their phone
+ 8. Reads plain-language summary → Chats or voice-asks follow-up questions
+```
+
+---
+
 ## Architecture
 
 ```
