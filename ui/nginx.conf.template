@@ -1,0 +1,84 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # ── Gzip ─────────────────────────────────────────────────
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types
+        text/plain text/css text/xml text/javascript
+        application/javascript application/json application/xml+rss;
+
+    # ── Security headers ─────────────────────────────────────
+    add_header X-Frame-Options       "SAMEORIGIN"                     always;
+    add_header X-Content-Type-Options "nosniff"                       always;
+    add_header X-XSS-Protection      "1; mode=block"                  always;
+    add_header Referrer-Policy        "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss: ws: https://*.azurecontainerapps.io; media-src 'self' blob:;"
+        always;
+
+    # ── API proxy → backend via Dapr sidecar ─────────────────
+    #    Must appear BEFORE the static-asset regex so that
+    #    /api/images/foo.png is proxied, not served as a static file.
+    location /api/ {
+        proxy_pass http://localhost:3500/v1.0/invoke/${DAPR_BACKEND_APP_ID}/method/api/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Generous timeouts for long-running agent pipelines
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+
+        error_log  /var/log/nginx/api_error.log  warn;
+        access_log /var/log/nginx/api_access.log;
+    }
+
+    # ── WebSocket proxy → backend (Dapr does not support WS) ─
+    #    Container Apps internal ingress uses HTTPS on port 443.
+    location /ws/ {
+        proxy_pass https://${BACKEND_INTERNAL_HOST};
+        proxy_http_version 1.1;
+        proxy_ssl_server_name on;
+
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       ${BACKEND_INTERNAL_HOST};
+
+        proxy_read_timeout  86400s;
+        proxy_send_timeout  86400s;
+
+        error_log  /var/log/nginx/ws_error.log  warn;
+        access_log /var/log/nginx/ws_access.log;
+    }
+
+    # ── SPA client-side routing ──────────────────────────────
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── Health check for Container Apps ingress probe ────────
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # ── Static asset caching (Vite hashed filenames) ─────────
+    #    Only match files under /assets/ (Vite output) so this
+    #    never intercepts /api/images/*.png requests.
+    location /assets/ {
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}

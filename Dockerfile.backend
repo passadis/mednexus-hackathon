@@ -1,0 +1,36 @@
+# ── MedNexus Backend ─────────────────────────────────────────
+# Runs the FastAPI/uvicorn API server.
+# Container Apps deployment: internal ingress on port 8000,
+# Dapr sidecar enabled with app-id "mednexus-backend".
+# ─────────────────────────────────────────────────────────────
+
+FROM python:3.11-slim AS base
+
+# Prevent .pyc files & enable unbuffered stdout for container logs
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# ── Dependencies (cached layer) ─────────────────────────────
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── Application code ─────────────────────────────────────────
+COPY src/ src/
+COPY pyproject.toml .
+
+# Install mednexus package so "import mednexus" works
+RUN pip install --no-cache-dir --no-deps .
+
+# Data folder (intake buffer)
+RUN mkdir -p data/intake
+
+EXPOSE 8000
+
+# Production: multiple workers, graceful shutdown
+CMD ["uvicorn", "mednexus.api.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "2", \
+     "--timeout-graceful-shutdown", "30"]

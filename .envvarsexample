@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+# MedNexus – Environment Configuration
+# Copy this file to `.env` and fill in the values.
+# ─────────────────────────────────────────────────────────────
+
+# ── Azure AI Foundry / OpenAI ────────────────────────────────
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_DEPLOYMENT=
+AZURE_OPENAI_API_VERSION=
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=
+AZURE_OPENAI_EMBEDDING_DIMENSIONS=
+AZURE_OPENAI_WHISPER_DEPLOYMENT=
+
+# ── Azure AI Vision ──────────────────────────────────────────
+AZURE_AI_VISION_ENDPOINT=
+AZURE_AI_VISION_KEY=
+
+# ── Azure AI Search (RAG) ───────────────────────────────────
+AZURE_SEARCH_ENDPOINT=
+AZURE_SEARCH_KEY=
+AZURE_SEARCH_INDEX=
+
+# ── Azure Cosmos DB ──────────────────────────────────────────
+COSMOS_ENDPOINT=
+COSMOS_KEY=
+COSMOS_DATABASE=
+COSMOS_CONTAINER=
+
+# ── Azure Blob Storage (Drop Folder) ────────────────────────
+AZURE_STORAGE_CONNECTION_STRING=
+AZURE_STORAGE_CONTAINER=
+# ── Azure OpenAI Realtime (Voice) ────────────────────────
+AZURE_OPENAI_REALTIME_ENDPOINT=
+AZURE_OPENAI_REALTIME_KEY=
+AZURE_OPENAI_REALTIME_DEPLOYMENT=
+# ── Azure Speech (Whisper) ───────────────────────────────────
+AZURE_SPEECH_KEY=
+AZURE_SPEECH_REGION=
+
+# ── Application ──────────────────────────────────────────────
+MEDNEXUS_LOG_LEVEL=
+MEDNEXUS_CORS_ORIGINS=
+MCP_DROP_FOLDER=
+
+# ── Portal JWT ───────────────────────────────────────────
+PORTAL_JWT_SECRET=
+PORTAL_JWT_EXPIRY_HOURS=

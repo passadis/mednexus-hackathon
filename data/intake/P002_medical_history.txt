@@ -1,0 +1,15 @@
+Medical History – P002 Emma Rodriguez
+DOB: 2004-03-15 | Gender: Female | MRN: MRN-2002-0456
+
+Previous Injuries:
+  - 2024-01: Right meniscus repair (arthroscopic)
+  - 2023-06: Left ankle sprain (Grade II)
+  - 2022-11: Right knee contusion
+
+Surgeries:
+  - 2024-01-15: Arthroscopic partial meniscectomy, right knee
+    Surgeon: Dr. Linda Zhao, Sports Medicine
+    Recovery: 8 weeks, full return to play 2024-04
+
+Allergies: None known
+Medications: Ibuprofen PRN

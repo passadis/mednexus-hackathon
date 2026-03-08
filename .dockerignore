@@ -1,0 +1,45 @@
+# ── Git / VCS ────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__
+*.pyc
+*.pyo
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage
+
+# ── Node / UI ────────────────────────────────────────────────
+ui/node_modules
+ui/dist
+ui/.vite
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode
+.idea
+*.swp
+*.swo
+
+# ── Secrets & local config ───────────────────────────────────
+.env
+.env.*
+*.local
+
+# ── Data / artefacts ─────────────────────────────────────────
+data/
+inputs/
+*.log
+
+# ── Docker build context noise ───────────────────────────────
+docker-compose*.yml
+Dockerfile*
+!Dockerfile.backend
+!Dockerfile.frontend
+LICENSE
+docs/
+tests/
+notebooks/

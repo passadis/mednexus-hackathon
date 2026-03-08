@@ -1,0 +1,72 @@
+# ── MedNexus – Container Apps-style local dev ────────────────
+# Mirrors the Azure deployment topology:
+#   frontend (nginx + Dapr) → backend (FastAPI + Dapr)
+#
+# Run:  docker compose -f docker-compose.deploy.yml up --build
+# ─────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  # ── Dapr placement service (local Dapr requirement) ────────
+  placement:
+    image: "daprio/dapr:1.14.4"
+    command: ["./placement", "-port", "50006"]
+    ports:
+      - "50006:50006"
+
+  # ── Backend API ────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    env_file: .env
+    environment:
+      - MEDNEXUS_CORS_ORIGINS=http://localhost:8080
+    volumes:
+      - ./data/intake:/app/data/intake
+
+  backend-dapr:
+    image: "daprio/daprd:1.14.4"
+    command:
+      [
+        "./daprd",
+        "-app-id", "mednexus-backend",
+        "-app-port", "8000",
+        "-placement-host-address", "placement:50006",
+        "-dapr-http-port", "3500",
+        "-dapr-grpc-port", "50001",
+      ]
+    depends_on:
+      - backend
+      - placement
+    network_mode: "service:backend"
+
+  # ── Frontend nginx ─────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    environment:
+      - DAPR_BACKEND_APP_ID=mednexus-backend
+      - BACKEND_INTERNAL_HOST=backend
+    depends_on:
+      - backend
+
+  frontend-dapr:
+    image: "daprio/daprd:1.14.4"
+    command:
+      [
+        "./daprd",
+        "-app-id", "mednexus-frontend",
+        "-app-port", "80",
+        "-placement-host-address", "placement:50006",
+        "-dapr-http-port", "3500",
+        "-dapr-grpc-port", "50001",
+      ]
+    depends_on:
+      - frontend
+      - placement
+    network_mode: "service:frontend"

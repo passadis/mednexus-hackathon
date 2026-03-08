@@ -1,0 +1,15 @@
+ECG Interpretation & Cardiology Notes – P003 Robert Chen
+Date: 2026-02-22 | Cardiologist: Dr. Alan Nguyen
+
+12-Lead ECG Findings:
+  - Sinus rhythm at 76 bpm with occasional PVCs (3-4/min)
+  - Normal axis, no ST changes
+  - Prosthetic valve clicks present bilaterally
+
+Assessment: Occasional PVCs noted but within normal
+post-operative parameters. No evidence of valve dysfunction
+or pericardial effusion on today's echo.
+
+Plan: Continue current medication regimen (Warfarin 5mg,
+Metoprolol 25mg BID). Tele-health follow-up in 1 week.
+Reassurance provided re: benign nature of post-op PVCs.

@@ -1,0 +1,10 @@
+Patient Interview Transcript – P001 John Mitchell
+Date: 2026-02-20
+Interviewer: Dr. Sarah Chen
+
+Patient states: "I feel fine, just a little tired. No chest pain
+really, maybe just a bit of a cough from the cold weather."
+
+Vital signs: BP 138/88, HR 82, Temp 99.2°F, SpO2 96%
+Observation: Patient appears mildly dyspneic on exertion.
+History: 55 y/o male, history of mild asthma, non-smoker.
