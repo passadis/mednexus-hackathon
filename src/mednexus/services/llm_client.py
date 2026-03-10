@@ -16,11 +16,26 @@ class LLMClient:
     """Thin async wrapper around Azure OpenAI for chat & vision completions."""
 
     def __init__(self) -> None:
-        self._client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-        )
+        if settings.use_managed_identity:
+            from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
+            credential = DefaultAzureCredential(
+                managed_identity_client_id=settings.managed_identity_client_id
+            )
+            token_provider = get_bearer_token_provider(
+                credential, "https://cognitiveservices.azure.com/.default"
+            )
+            self._client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                azure_ad_token_provider=token_provider,
+                api_version=settings.azure_openai_api_version,
+            )
+        else:
+            self._client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_key=settings.azure_openai_api_key,
+                api_version=settings.azure_openai_api_version,
+            )
         self._deployment = settings.azure_openai_deployment
 
     async def chat(

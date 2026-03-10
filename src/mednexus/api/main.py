@@ -18,7 +18,7 @@ import structlog
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from mednexus.a2a import get_a2a_bus
+from mednexus.a2a import A2ABus, get_a2a_bus
 from mednexus.agents.clinical_sorter import ClinicalSorterAgent
 from mednexus.agents.diagnostic_synthesis import DiagnosticSynthesisAgent
 from mednexus.agents.orchestrator import OrchestratorAgent
@@ -226,10 +226,23 @@ async def _cleanup_blobs_and_files(file_uris: list[str], patient_id: str | None 
     local_deleted = 0
 
     # Blob cleanup
-    if settings.azure_storage_connection_string:
+    if settings.azure_storage_connection_string or (
+        settings.use_managed_identity and settings.azure_storage_account_url
+    ):
         from mednexus.mcp.azure_blob import AzureBlobMCP
 
-        blob_mcp = AzureBlobMCP(settings.azure_storage_connection_string, settings.azure_storage_container)
+        if settings.use_managed_identity and settings.azure_storage_account_url:
+            from azure.identity.aio import DefaultAzureCredential as _AioDC
+
+            blob_mcp = AzureBlobMCP(
+                container_name=settings.azure_storage_container,
+                account_url=settings.azure_storage_account_url,
+                credential=_AioDC(
+                    managed_identity_client_id=settings.managed_identity_client_id
+                ),
+            )
+        else:
+            blob_mcp = AzureBlobMCP(settings.azure_storage_connection_string, settings.azure_storage_container)
         if patient_id:
             blob_deleted = await blob_mcp.delete_blobs_by_prefix(f"{patient_id}_")
         elif file_uris:
@@ -317,11 +330,24 @@ async def delete_episode(patient_id: str, episode_id: str) -> dict[str, Any]:
     if ctx.active_episode_id == episode_id:
         ctx.active_episode_id = ctx.episodes[-1].episode_id if ctx.episodes else None
 
-    # Recalculate status
+    # Recalculate status & clean up legacy mirrored fields
     if not ctx.episodes:
         from mednexus.models.clinical_context import ContextStatus
         ctx.status = ContextStatus.INTAKE
         ctx.cross_episode_summary = None
+        # Clear legacy fields that were mirrored from episodes
+        ctx.synthesis = None
+        ctx.findings = []
+        ctx.ingested_files = []
+        ctx.approved_by = None
+        ctx.approved_at = None
+        ctx.approval_notes = ""
+        ctx.activity_log = []
+    else:
+        # Re-sync legacy synthesis from the now-active episode
+        active = ctx.get_active_episode()
+        ctx.synthesis = active.synthesis if active else None
+        ctx.status = active.status if active else ctx.episodes[-1].status
 
     await cosmos.upsert_context(ctx)
 
@@ -386,6 +412,19 @@ async def upload_file(
         ) as container:
             await container.upload_blob(filename, content, overwrite=True)
         file_uri = f"az://{settings.azure_storage_container}/{filename}"
+    elif settings.use_managed_identity and settings.azure_storage_account_url:
+        from azure.identity.aio import DefaultAzureCredential as AsyncCredential
+        from azure.storage.blob.aio import ContainerClient
+
+        cred = AsyncCredential(managed_identity_client_id=settings.managed_identity_client_id or None)
+        async with ContainerClient(
+            settings.azure_storage_account_url,
+            settings.azure_storage_container,
+            credential=cred,
+        ) as container:
+            await container.upload_blob(filename, content, overwrite=True)
+        await cred.close()
+        file_uri = f"az://{settings.azure_storage_container}/{filename}"
 
     # Classify the file
     sorter = ClinicalSorterAgent()
@@ -401,7 +440,16 @@ async def upload_file(
     # Dispatch to orchestrator (episode-aware)
     orchestrator: OrchestratorAgent = app.state.orchestrator
     task_id = await orchestrator.ingest_file(med_file, ctx, episode_id=episode_id)
+
+    # Save directly — ingest_file modified ctx in-memory (created episode,
+    # appended to ingested_files, transitioned status).  The specialist
+    # hasn't started yet so no concurrent writes to worry about.
     await cosmos.upsert_context(ctx)
+
+    # Notify UI immediately so the image thumbnail appears before the
+    # specialist finishes its analysis.
+    bus: A2ABus = app.state.bus
+    await bus.broadcast_event("context_updated", {"patient_id": patient_id})
 
     active_ep = ctx.get_active_episode()
     return {
@@ -427,7 +475,9 @@ async def serve_image(filename: str):
 
     from fastapi.responses import Response
 
-    content_type = "image/png" if filename.lower().endswith(".png") else "application/octet-stream"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    media_map = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "bmp": "image/bmp"}
+    content_type = media_map.get(ext, "application/octet-stream")
 
     # Try Azure Blob first
     if settings.azure_storage_connection_string:
@@ -441,8 +491,25 @@ async def serve_image(filename: str):
                 blob = await container.download_blob(filename)
                 data = await blob.readall()
                 return Response(content=data, media_type=content_type)
-        except Exception:
-            pass  # fall through to local
+        except Exception as exc:
+            logger.warning("blob_image_fallback", filename=filename, error=str(exc))
+    elif settings.use_managed_identity and settings.azure_storage_account_url:
+        try:
+            from azure.identity.aio import DefaultAzureCredential as AsyncCredential
+            from azure.storage.blob.aio import ContainerClient
+
+            cred = AsyncCredential(managed_identity_client_id=settings.managed_identity_client_id or None)
+            async with ContainerClient(
+                settings.azure_storage_account_url,
+                settings.azure_storage_container,
+                credential=cred,
+            ) as container:
+                blob = await container.download_blob(filename)
+                data = await blob.readall()
+            await cred.close()
+            return Response(content=data, media_type=content_type)
+        except Exception as exc:
+            logger.warning("blob_mi_image_fallback", filename=filename, error=str(exc))
 
     # Local fallback
     local_path = Path(settings.mcp_drop_folder) / filename

@@ -22,6 +22,25 @@ from mednexus.config import settings
 logger = structlog.get_logger()
 
 
+# ── Auth helpers ───────────────────────────────────────────
+
+
+def _search_configured() -> bool:
+    return bool(settings.azure_search_endpoint) and (
+        bool(settings.azure_search_key) or settings.use_managed_identity
+    )
+
+
+def _search_credential():
+    if settings.use_managed_identity:
+        from azure.identity.aio import DefaultAzureCredential
+
+        return DefaultAzureCredential(
+            managed_identity_client_id=settings.managed_identity_client_id
+        )
+    return AzureKeyCredential(settings.azure_search_key)
+
+
 # ── Embedding helper ─────────────────────────────────────────
 
 
@@ -30,17 +49,34 @@ async def generate_embedding(text: str) -> list[float]:
 
     Returns a list of floats (1536 dimensions for text-embedding-3-small).
     """
-    if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
+    if not settings.azure_openai_endpoint or (
+        not settings.azure_openai_api_key and not settings.use_managed_identity
+    ):
         logger.warning("openai_not_configured_for_embeddings")
         return []
 
     from openai import AsyncAzureOpenAI
 
-    client = AsyncAzureOpenAI(
-        azure_endpoint=settings.azure_openai_endpoint,
-        api_key=settings.azure_openai_api_key,
-        api_version="2024-06-01",
-    )
+    if settings.use_managed_identity:
+        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
+        credential = DefaultAzureCredential(
+            managed_identity_client_id=settings.managed_identity_client_id
+        )
+        token_provider = get_bearer_token_provider(
+            credential, "https://cognitiveservices.azure.com/.default"
+        )
+        client = AsyncAzureOpenAI(
+            azure_endpoint=settings.azure_openai_endpoint,
+            azure_ad_token_provider=token_provider,
+            api_version="2024-06-01",
+        )
+    else:
+        client = AsyncAzureOpenAI(
+            azure_endpoint=settings.azure_openai_endpoint,
+            api_key=settings.azure_openai_api_key,
+            api_version="2024-06-01",
+        )
     response = await client.embeddings.create(
         input=text,
         model=settings.azure_openai_embedding_deployment,
@@ -79,14 +115,14 @@ async def search_documents(
     list[dict]
         List of matched documents with scores.
     """
-    if not settings.azure_search_endpoint or not settings.azure_search_key:
+    if not _search_configured():
         logger.warning("search_not_configured")
         return []
 
     async with SearchClient(
         endpoint=settings.azure_search_endpoint,
         index_name=settings.azure_search_index,
-        credential=AzureKeyCredential(settings.azure_search_key),
+        credential=_search_credential(),
     ) as client:
         kwargs: dict[str, Any] = {
             "search_text": query,
@@ -142,13 +178,13 @@ async def search_patient_documents(
 
 async def delete_patient_documents(patient_id: str) -> int:
     """Delete all search documents for a patient. Returns count deleted."""
-    if not settings.azure_search_endpoint or not settings.azure_search_key:
+    if not _search_configured():
         return 0
 
     async with SearchClient(
         endpoint=settings.azure_search_endpoint,
         index_name=settings.azure_search_index,
-        credential=AzureKeyCredential(settings.azure_search_key),
+        credential=_search_credential(),
     ) as client:
         # Collect all document IDs for this patient
         doc_ids: list[str] = []
@@ -170,24 +206,41 @@ async def delete_patient_documents(patient_id: str) -> int:
 
 
 async def delete_documents_by_uris(uris: list[str]) -> int:
-    """Delete search documents whose metadata_storage_path matches any of the given URIs."""
-    if not uris or not settings.azure_search_endpoint or not settings.azure_search_key:
+    """Delete search documents whose metadata_storage_path matches any of the given URIs.
+
+    Because ``metadata_storage_path`` may not be marked filterable in the index
+    schema, we search by patient_id (extracted from the URI) and then match the
+    ``metadata_storage_path`` value in Python.
+    """
+    if not uris or not _search_configured():
         return 0
+
+    # Extract patient IDs from az:// URIs (format: az://container/patientId_filename)
+    patient_ids: set[str] = set()
+    uri_set = set(uris)
+    for uri in uris:
+        parts = uri.split("/")
+        if len(parts) >= 4:
+            fname = parts[-1]
+            pid = fname.split("_")[0] if "_" in fname else ""
+            if pid:
+                patient_ids.add(pid)
 
     async with SearchClient(
         endpoint=settings.azure_search_endpoint,
         index_name=settings.azure_search_index,
-        credential=AzureKeyCredential(settings.azure_search_key),
+        credential=_search_credential(),
     ) as client:
         doc_ids: list[str] = []
-        for uri in uris:
+        for pid in patient_ids:
             async for doc in await client.search(
                 search_text="*",
-                filter=f"metadata_storage_path eq '{uri}'",
-                select=["id"],
-                top=100,
+                filter=f"patient_id eq '{pid}'",
+                select=["id", "metadata_storage_path"],
+                top=1000,
             ):
-                doc_ids.append(doc["id"])
+                if doc.get("metadata_storage_path") in uri_set:
+                    doc_ids.append(doc["id"])
 
         if not doc_ids:
             return 0
@@ -213,7 +266,7 @@ async def index_document(
     If ``auto_embed`` is True and ``content_vector`` is not already in the
     document, an embedding will be generated from the ``content`` field.
     """
-    if not settings.azure_search_endpoint or not settings.azure_search_key:
+    if not _search_configured():
         logger.warning("search_not_configured_for_indexing")
         return
 
@@ -226,7 +279,7 @@ async def index_document(
     async with SearchClient(
         endpoint=settings.azure_search_endpoint,
         index_name=settings.azure_search_index,
-        credential=AzureKeyCredential(settings.azure_search_key),
+        credential=_search_credential(),
     ) as client:
         await client.upload_documents(documents=[document])
         logger.info("document_indexed", doc_id=document.get("id"))

@@ -2,27 +2,42 @@
 
 These files are provided for **hackathon judges** to test the full MedNexus agent pipeline without needing to source their own medical data.
 
-## Files
+Two sample patient folders are included — each designed to trigger different agent combinations.
+
+## Sample 01 — Chest / Respiratory Case
+
+Folder: `sample-01/`
 
 | File | Type | What it triggers |
 |---|---|---|
-| `chest_xray.png` | Medical image | **Vision Specialist** — GPT-4o multimodal analysis with structured findings |
+| `chest-xray.png` | Medical image | **Vision Specialist** — GPT-4o multimodal analysis with structured findings |
 | `bloodwork.csv` | Lab results | **Clinical Sorter** — lab CSV classification and value extraction |
 | `patient_transcript.txt` | Patient interview | **Patient Historian** — text extraction, RAG indexing, symptom analysis |
 | `referral_letter.pdf.txt` | Referral document | **Patient Historian** — PDF text extraction and history synthesis |
 
+**What to look for:** The patient says *"no chest pain"* — but the X-ray may show findings that contradict this. The Diagnostic Synthesis Agent will flag the discrepancy. The bloodwork shows elevated WBC, ESR, and CRP (inflammatory markers), which correlates with the imaging findings.
+
+## Sample 02 — Sports Injury / Musculoskeletal Case
+
+Folder: `sample-02/`
+
+| File | Type | What it triggers |
+|---|---|---|
+| `muscle-inflammation.png` | Medical image | **Vision Specialist** — musculoskeletal imaging analysis |
+| `toe-left.png` | Medical image | **Vision Specialist** — secondary extremity image |
+| `audio-elbow.mp3` | Audio recording | **Patient Historian** — Whisper transcription + symptom extraction |
+| `patient_transcript_soccer.txt` | Patient interview | **Patient Historian** — text extraction and RAG indexing |
+
+**What to look for:** Multiple images from different body regions, combined with an audio recording describing the injury. The Synthesis Agent merges visual findings with the patient's own words.
+
 ## How to use
 
-1. Open MedNexus and select (or create) a patient by typing a new name or patient ID (e.g. P037) and pressing Enter
-2. Click **Upload** and drag in one or more of these files
-3. Watch the **Agent Chatter** pane to see each agent process the files in real time
-4. After all files are processed, the **Diagnostic Synthesis Report** will appear automatically
-
-## What to look for
-
-- The patient says *"no chest pain"* — but the X-ray may show findings that contradict this. The **Diagnostic Synthesis Agent** will flag the discrepancy.
-- The bloodwork shows elevated WBC, ESR, and CRP (inflammatory markers) — which correlates with the imaging findings.
-- The referral letter provides clinical context that the **Patient Historian** uses to build a longitudinal view.
+1. Open MedNexus and select (or create) a patient by typing a new name or patient ID (e.g. `P037`) and pressing Enter
+2. Click **Upload File** and select files from either `sample-01/` or `sample-02/`
+3. **Important:** The file picker defaults to "Custom Files" — change the dropdown to **"All Files"** so `.txt` and `.csv` files are visible
+4. Watch the **Agent Stepper** on each episode card to follow the pipeline: Intake → Specialist → Cross-Check → Synthesis
+5. Watch the **Agent Chatter** pane to see each agent's reasoning in real time
+6. After all agents finish, the **Diagnostic Synthesis Report** appears automatically
 
 ## Note
 

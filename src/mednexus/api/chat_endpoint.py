@@ -178,6 +178,10 @@ opacity?", "cardiac abnormalities?", "who has abnormal findings?"), use \
 search_clinical_data for hybrid semantic search.
 • Always prefer querying tools over guessing — use real data.
 • After calling load_patient, tell the user you've navigated to that patient.
+• list_patients returns patients sorted by most recently UPDATED first. \
+Each patient includes "created_at" (when first added) and "updated_at" \
+(last modification). Use "created_at" to determine which patient was added \
+most recently.
 
 CRITICAL FORMATTING RULES:
 • NEVER use Markdown syntax. No **bold**, no *italic*, no # headings, \
@@ -195,17 +199,38 @@ no ```code blocks```, no [links](url).
 # ── Tool Implementations ─────────────────────────────────────
 
 
+def _all_findings(ctx: Any) -> list[Any]:
+    """Collect findings from all episodes + legacy flat list."""
+    findings: list[Any] = []
+    for ep in ctx.episodes:
+        findings.extend(ep.findings)
+    findings.extend(ctx.findings)  # legacy fallback
+    return findings
+
+
+def _latest_synthesis(ctx: Any) -> Any | None:
+    """Return the most recent synthesis across episodes, or legacy."""
+    for ep in reversed(ctx.episodes):
+        if ep.synthesis is not None:
+            return ep.synthesis
+    return ctx.synthesis
+
+
 async def _exec_list_patients() -> dict[str, Any]:
     cosmos = get_cosmos_manager()
     contexts = await cosmos.list_contexts(limit=50)
     patients = []
     for ctx in contexts:
+        all_f = _all_findings(ctx)
         patients.append({
             "patient_id": ctx.patient.patient_id,
             "name": ctx.patient.name or "(unnamed)",
             "status": ctx.status.value,
-            "findings_count": len(ctx.findings),
-            "has_synthesis": ctx.synthesis is not None,
+            "episodes": len(ctx.episodes),
+            "findings_count": len(all_f),
+            "has_synthesis": _latest_synthesis(ctx) is not None,
+            "created_at": ctx.created_at.isoformat(),
+            "updated_at": ctx.updated_at.isoformat(),
         })
     return {"count": len(patients), "patients": patients}
 
@@ -232,14 +257,28 @@ async def _exec_load_patient(patient_id: str) -> dict[str, Any]:
     ctx = await cosmos.get_context(patient_id.upper())
     if ctx is None:
         return {"error": f"Patient {patient_id} not found"}
-    doc = ctx.to_cosmos_doc()
+    all_f = _all_findings(ctx)
+    syn = _latest_synthesis(ctx)
+    episodes_summary = []
+    for ep in ctx.episodes:
+        episodes_summary.append({
+            "episode_id": ep.episode_id,
+            "label": ep.label,
+            "status": ep.status.value,
+            "findings_count": len(ep.findings),
+            "has_synthesis": ep.synthesis is not None,
+            "files": [u.split('/').pop() for u in ep.ingested_files],
+        })
     return {
         "action": "navigate",
         "patient_id": ctx.patient.patient_id,
         "name": ctx.patient.name or "(unnamed)",
         "status": ctx.status.value,
-        "findings_count": len(ctx.findings),
-        "has_synthesis": ctx.synthesis is not None,
+        "episodes": episodes_summary,
+        "findings_count": len(all_f),
+        "has_synthesis": syn is not None,
+        "created_at": ctx.created_at.isoformat(),
+        "updated_at": ctx.updated_at.isoformat(),
     }
 
 
@@ -249,7 +288,7 @@ async def _exec_get_findings(patient_id: str, modality: str | None = None) -> di
     if ctx is None:
         return {"error": f"Patient {patient_id} not found"}
 
-    findings = ctx.findings
+    findings = _all_findings(ctx)
     if modality:
         findings = [f for f in findings if f.modality.value == modality]
 
@@ -274,12 +313,29 @@ async def _exec_get_synthesis(patient_id: str) -> dict[str, Any]:
     ctx = await cosmos.get_context(patient_id.upper())
     if ctx is None:
         return {"error": f"Patient {patient_id} not found"}
-    if ctx.synthesis is None:
-        return {"patient_id": ctx.patient.patient_id, "synthesis": None, "message": "No synthesis report generated yet."}
-    s = ctx.synthesis
-    return {
-        "patient_id": ctx.patient.patient_id,
-        "synthesis": {
+
+    # Collect per-episode synthesis reports
+    episode_reports = []
+    for ep in ctx.episodes:
+        if ep.synthesis is not None:
+            s = ep.synthesis
+            episode_reports.append({
+                "episode": ep.label,
+                "summary": s.summary,
+                "cross_modality_notes": s.cross_modality_notes,
+                "recommendations": s.recommendations,
+                "discrepancies": [
+                    {"description": d.description, "severity": d.severity}
+                    for d in s.discrepancies
+                ],
+                "generated_at": s.generated_at.isoformat() if s.generated_at else None,
+            })
+
+    # Legacy fallback
+    if not episode_reports and ctx.synthesis is not None:
+        s = ctx.synthesis
+        episode_reports.append({
+            "episode": "(legacy)",
             "summary": s.summary,
             "cross_modality_notes": s.cross_modality_notes,
             "recommendations": s.recommendations,
@@ -288,7 +344,14 @@ async def _exec_get_synthesis(patient_id: str) -> dict[str, Any]:
                 for d in s.discrepancies
             ],
             "generated_at": s.generated_at.isoformat() if s.generated_at else None,
-        },
+        })
+
+    if not episode_reports:
+        return {"patient_id": ctx.patient.patient_id, "synthesis": None, "message": "No synthesis report generated yet."}
+
+    return {
+        "patient_id": ctx.patient.patient_id,
+        "reports": episode_reports,
     }
 
 

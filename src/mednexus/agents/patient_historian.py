@@ -86,9 +86,23 @@ class PatientHistorianAgent(BaseAgent):
                     f"Retrieved Records:\n{context}\n\n"
                     f"Additional instructions: {assignment.instructions}"
                 ),
+                max_tokens=4096,
                 response_format={"type": "json_object"},
             )
-            parsed: dict[str, Any] = json.loads(raw)
+            try:
+                parsed: dict[str, Any] = json.loads(raw)
+            except json.JSONDecodeError:
+                # LLM response may have been truncated — try closing braces
+                repaired = raw.rstrip()
+                # Close any open string, then close all open braces/brackets
+                open_braces = repaired.count("{") - repaired.count("}")
+                open_brackets = repaired.count("[") - repaired.count("]")
+                if open_braces > 0 or open_brackets > 0:
+                    repaired += '"' + "]" * max(open_brackets, 0) + "}" * max(open_braces, 0)
+                try:
+                    parsed = json.loads(repaired)
+                except json.JSONDecodeError:
+                    parsed = {"history_summary": raw, "confidence": 0.5}
 
             # Merge transcript segments into the structured output
             if transcript_data and transcript_data.get("segments"):

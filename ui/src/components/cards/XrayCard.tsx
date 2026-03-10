@@ -10,7 +10,7 @@ interface XrayCardProps {
 /** Extract image filenames from the ingested file URIs. */
 function getImageFilenames(files: string[]): string[] {
   return files
-    .filter((f) => /\.(png|jpg|jpeg|dcm|dicom)$/i.test(f))
+    .filter((f) => /\.(png|jpg|jpeg|bmp|dcm|dicom)$/i.test(f))
     .map((f) => f.split('/').pop()!)
     .filter(Boolean);
 }

@@ -6,6 +6,7 @@ import { TranscriptCard } from './TranscriptCard';
 import { SynthesisCard } from './SynthesisCard';
 import { StatusBadge } from '../StatusBadge';
 import { ShareModal } from '../ShareModal';
+import { AgentStepper } from '../AgentStepper';
 
 interface EpisodeCardProps {
   episode: Episode;
@@ -181,6 +182,11 @@ export function EpisodeCard({
       {/* Collapsible body */}
       {open && (
         <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-5">
+          {/* Agent Pipeline Stepper */}
+          <div className="mb-4 rounded-xl border border-slate-100 bg-white px-3 py-1">
+            <AgentStepper episode={episode} />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <XrayCard findings={xrayFindings} ingestedFiles={episode.ingested_files} />
             <TranscriptCard findings={textFindings} />

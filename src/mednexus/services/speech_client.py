@@ -57,7 +57,9 @@ async def transcribe_audio(audio_bytes: bytes) -> TranscriptResult:
     Uses ``verbose_json`` response format to get per-segment timestamps.
     Returns a ``TranscriptResult`` with the full text and timed segments.
     """
-    if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
+    if not settings.azure_openai_endpoint or (
+        not settings.azure_openai_api_key and not settings.use_managed_identity
+    ):
         logger.warning("whisper_not_configured")
         return TranscriptResult(
             full_text="[Audio transcription unavailable – OpenAI not configured]"
@@ -66,11 +68,26 @@ async def transcribe_audio(audio_bytes: bytes) -> TranscriptResult:
     try:
         from openai import AsyncAzureOpenAI
 
-        client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-        )
+        if settings.use_managed_identity:
+            from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
+            credential = DefaultAzureCredential(
+                managed_identity_client_id=settings.managed_identity_client_id
+            )
+            token_provider = get_bearer_token_provider(
+                credential, "https://cognitiveservices.azure.com/.default"
+            )
+            client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                azure_ad_token_provider=token_provider,
+                api_version=settings.azure_openai_api_version,
+            )
+        else:
+            client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_key=settings.azure_openai_api_key,
+                api_version=settings.azure_openai_api_version,
+            )
 
         # Whisper requires a file-like object with a name attribute
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:

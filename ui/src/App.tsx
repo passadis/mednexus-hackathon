@@ -23,8 +23,8 @@ export function App() {
 
 function DoctorApp() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
-  const { messages } = useWebSocket();
   const { context, loading, error, refresh } = usePatientContext(selectedPatientId);
+  const { messages } = useWebSocket(refresh);
 
   const handleSelectPatient = useCallback((id: string) => {
     setSelectedPatientId(id);
@@ -79,7 +79,7 @@ function DoctorApp() {
         `/api/patients/${context.patient.patient_id}/episodes/${episodeId}`,
         { method: 'DELETE' },
       );
-      if (res.ok) refresh();
+      if (res.ok) await refresh();
     } catch {
       console.error('Failed to delete episode');
     }

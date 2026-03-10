@@ -88,6 +88,10 @@ class A2ABus:
             except Exception as exc:
                 logger.warning("broadcast_error", error=str(exc))
 
+    async def broadcast_event(self, event_name: str, data: dict[str, Any] | None = None) -> None:
+        """Broadcast a custom lifecycle event to all WS observers."""
+        await self._broadcast({"event": event_name, "data": data or {}})
+
     # ── Introspection ────────────────────────────────────────
 
     @property

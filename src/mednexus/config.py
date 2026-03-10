@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # ── Azure Blob Storage ───────────────────────────────────
     azure_storage_connection_string: str = ""
     azure_storage_container: str = "mednexus-intake"
+    azure_storage_account_url: str = ""  # e.g. https://strapidemo02.blob.core.windows.net
 
     # ── Azure Speech ─────────────────────────────────────────
     azure_speech_key: str = ""
@@ -54,6 +55,10 @@ class Settings(BaseSettings):
     # ── Portal JWT ────────────────────────────────────────────
     portal_jwt_secret: str = "mednexus-portal-secret-change-me"
     portal_jwt_expiry_hours: int = 48
+
+    # ── Managed Identity ─────────────────────────────────────
+    use_managed_identity: bool = False
+    managed_identity_client_id: str = ""
 
     # ── Application ──────────────────────────────────────────
     mednexus_log_level: str = "INFO"

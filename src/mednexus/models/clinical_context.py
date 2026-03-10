@@ -188,7 +188,7 @@ class ClinicalContext(BaseModel):
     # ── Episode-based architecture ────────────────────────────
     episodes: list[Episode] = Field(default_factory=list)
     active_episode_id: str | None = None
-    cross_episode_summary: str = ""
+    cross_episode_summary: str | None = ""
 
     # Workflow semaphore (overall patient status – derived from active episode)
     status: ContextStatus = ContextStatus.INTAKE

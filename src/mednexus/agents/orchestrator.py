@@ -87,6 +87,18 @@ class OrchestratorAgent(BaseAgent):
             context_snapshot=ctx.model_dump(mode="json"),
         )
 
+        # If this episode already has a synthesis, reset it so a new
+        # synthesis fires once the specialist returns with the new data.
+        if ep.episode_id in self._synthesis_sent or ep.synthesis is not None:
+            self._synthesis_sent.discard(ep.episode_id)
+            ep.synthesis = None
+            ep.status = ContextStatus.INTAKE  # allow _transition_status to set the waiting state
+            ctx.log_activity(
+                agent=self.agent_id,
+                action="synthesis_reset",
+                detail=f"[{ep.label}] New file added — synthesis will re-run",
+            )
+
         # Update episode status
         self._transition_status(ep, file.file_type)
         ctx.status = ep.status  # mirror at top level
@@ -272,6 +284,13 @@ class OrchestratorAgent(BaseAgent):
                 ctx = await self.handle_specialist_result(result, ctx)
                 await cosmos.upsert_context(ctx)
 
+                # Notify connected UI clients that this patient's context changed
+                if self._bus is not None:
+                    await self._bus.broadcast_event(
+                        "context_updated",
+                        {"patient_id": patient_id},
+                    )
+
     # ── Task interface (unused for Orchestrator, but required) ─
 
     async def handle_task(self, assignment: TaskAssignment) -> TaskResult:
@@ -288,7 +307,18 @@ class OrchestratorAgent(BaseAgent):
 
     @staticmethod
     def _transition_status(ep: Episode, ftype: FileType) -> None:
-        """Move episode to the correct waiting state based on file type."""
+        """Move episode to the correct waiting state based on file type.
+
+        Refuses to regress if synthesis / approval is already reached.
+        """
+        _no_regress = {
+            ContextStatus.CROSS_MODALITY_CHECK,
+            ContextStatus.REVIEW_REQUIRED,
+            ContextStatus.APPROVED,
+            ContextStatus.FINALIZED,
+        }
+        if ep.status in _no_regress:
+            return
         status_map: dict[FileType, ContextStatus] = {
             FileType.IMAGE: ContextStatus.WAITING_FOR_RADIOLOGY,
             FileType.DICOM: ContextStatus.WAITING_FOR_RADIOLOGY,

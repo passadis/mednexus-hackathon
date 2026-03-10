@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home } from 'lucide-react';
+import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home, Paperclip } from 'lucide-react';
 import type { Episode } from '../types';
 
 interface SidebarProps {
@@ -134,6 +134,19 @@ export function Sidebar({
                     <p className="text-[10px] text-slate-400">
                       {date} · {ep.findings.length} findings
                     </p>
+                    {ep.ingested_files && ep.ingested_files.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {ep.ingested_files.map((uri) => {
+                          const name = uri.split('/').pop() ?? uri;
+                          return (
+                            <div key={uri} className="flex items-center gap-1 text-[10px] text-slate-400 truncate">
+                              <Paperclip className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate">{name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </button>
               );

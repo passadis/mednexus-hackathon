@@ -15,14 +15,27 @@ class AzureBlobMCP(MCPServer):
     directory within the same container.
     """
 
-    def __init__(self, connection_string: str, container_name: str) -> None:
+    def __init__(
+        self,
+        connection_string: str = "",
+        container_name: str = "",
+        *,
+        account_url: str = "",
+        credential: object | None = None,
+    ) -> None:
         self._conn_str = connection_string
         self._container = container_name
+        self._account_url = account_url
+        self._credential = credential
         self._seen: set[str] = set()
 
     def _get_client(self):  # noqa: ANN202
         from azure.storage.blob.aio import ContainerClient
 
+        if self._credential and self._account_url:
+            return ContainerClient(
+                self._account_url, self._container, credential=self._credential
+            )
         return ContainerClient.from_connection_string(self._conn_str, self._container)
 
     # ── interface ────────────────────────────────────────────

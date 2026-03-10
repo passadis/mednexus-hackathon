@@ -1,5 +1,8 @@
 # MedNexus — Multi-Agent Healthcare Orchestration Platform
 
+![alt text](logo-mednexus.png)
+
+
 **MedNexus** is a multi-agent clinical intelligence system that processes multimodal medical data — X-rays, PDFs, lab CSVs, and patient audio recordings — through a pipeline of specialized AI agents, culminating in a cross-modality Diagnostic Synthesis Report.
 
 Built on the **Microsoft Agent Framework** with **A2A (Agent-to-Agent)** communication, **MCP (Model Context Protocol)** for data abstraction, and **Azure AI Foundry** for intelligence.
@@ -35,6 +38,8 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 - **Patients can ask questions.** The portal includes a text chat and a real-time voice assistant. Patients can ask *"What does this mean for me?"* and get answers scoped only to their own clinical data.
 - **Full episode-based workflow.** Each visit is an episode. A patient can have many episodes over time, and each one tracks its own files, findings, synthesis, approval, and actions — giving doctors a longitudinal view.
 - **EHR-ready FHIR R4 export.** Signed-off episodes can be exported as standards-compliant FHIR R4 transaction Bundles (Patient + DiagnosticReport + Observations), ready to feed into downstream EHR systems.
+- **Visual agent pipeline stepper.** Each episode card shows a horizontal 4-step pipeline (Intake → Specialist → Cross-Check → Synthesis) with animated progress — green checkmarks for completed steps, a pulsing indicator for the active step, and specialist details pulled from the activity log.
+- **Doctor Chat Assistant.** A floating chat panel powered by GPT-4o with function-calling tools. Doctors can ask natural-language questions like *"Show me the last patient"* or *"What did the X-ray find?"* — the assistant queries patients, loads contexts, and retrieves findings or synthesis reports on demand.
 - **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
 
 ### Who it's for
@@ -120,12 +125,16 @@ mednexus-hackathon/
 │   │   │   ├── AgentChatter.tsx
 │   │   │   ├── FileUploader.tsx
 │   │   │   ├── StatusBadge.tsx
+│   │   │   ├── AgentStepper.tsx  # Visual pipeline progress per episode
+│   │   │   ├── ChatPanel.tsx     # Doctor Chat Assistant (GPT-4o)
 │   │   │   └── cards/      # Multimodal display cards
 │   │   ├── hooks/          # useWebSocket, usePatientContext
 │   │   └── types.ts        # Shared TypeScript interfaces
 │   ├── vite.config.ts
 │   └── tailwind.config.js
-├── data/intake/            # Local MCP drop-folder
+├── data/
+│   ├── intake/             # Local MCP drop-folder
+│   └── samples/            # Judge test data (sample-01, sample-02)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Dockerfile.ui
@@ -310,25 +319,29 @@ MedNexus is designed with healthcare-grade safety and compliance in mind:
 
 ## Try It — Judge Testing Guide
 
-Sample files are included in `data/samples/` so you can test the full pipeline immediately.
+Two ready-made sample folders are included in [`data/samples/`](data/samples/) — see the [Sample Data README](data/samples/README.md) for detailed descriptions of each case.
+
+| Folder | Scenario | Files |
+|---|---|---|
+| `sample-01/` | Chest / Respiratory case | X-ray, bloodwork CSV, patient transcript, referral letter |
+| `sample-02/` | Sports Injury / Musculoskeletal | 2 images, audio recording (MP3), transcript |
 
 ### Quick Test (Live Deployment)
 
 1. Open the deployed frontend (URL provided in submission)
-2. Click any patient on the **Patient Grid** — or create a new one by typing a name or patient ID (e.g. P037) and pressing Enter
-3. Upload the sample files from `data/samples/`:
-   - `chest_xray.png` — triggers Vision Specialist
-   - `bloodwork.csv` — triggers Lab analysis
-   - `patient_transcript.txt` — triggers audio/text processing
-   - `referral_letter.pdf` — triggers PDF extraction + RAG indexing
-4. Watch the **Agent Chatter** pane — you'll see each agent classify, analyze, and hand off in real time
-5. Once all agents finish, the **Synthesis Report** card appears with cross-modality findings
-6. Click **"Approve and Sign-off by MD"** → enter any name → report is finalized
-7. (Optional) Click the **✏️ Edit** button on the Synthesis Report to adjust the summary or recommendations before sign-off
-8. After approval, click **"FHIR R4 Export"** → downloads a standards-compliant FHIR Bundle JSON
-9. Click **"Share"** → copy the link or scan the QR code
-10. Open the link on your phone → see the **Patient Portal** with plain-language summary
-11. Try the **text chat** ("What does my X-ray show?") and the **voice assistant** (tap the mic)
+2. Click any patient on the **Patient Grid** — or create a new one by typing a name or patient ID (e.g. `P037`) and pressing Enter
+3. Click **Upload File** and navigate to `data/samples/sample-01/` (or `sample-02/`)
+4. **Tip:** The file picker defaults to *"Custom Files"* which hides `.txt` and `.csv` files. Change the dropdown to **"All Files"** to see everything.
+5. Upload files one at a time — watch the **Agent Stepper** on each episode card animate through the pipeline (Intake → Specialist → Cross-Check → Synthesis)
+6. Watch the **Agent Chatter** pane — you'll see each agent classify, analyze, and hand off in real time
+7. Once all agents finish, the **Synthesis Report** card appears with cross-modality findings
+8. (Optional) Click the **✏️ Edit** button on the Synthesis Report to adjust the summary or recommendations before sign-off
+9. Click **"Approve and Sign-off by MD"** → enter any name → report is finalized
+10. After approval, click **"FHIR R4 Export"** → downloads a standards-compliant FHIR Bundle JSON
+11. Click **"Share"** → copy the link or scan the QR code
+12. Open the link on your phone → see the **Patient Portal** with plain-language summary
+13. Try the **text chat** ("What does my X-ray show?") and the **voice assistant** (tap the mic)
+14. Back in the doctor view, try the **Doctor Chat** (bottom-right bubble) — ask *"Show me the last patient"* or *"What findings do we have?"*
 
 ### Local Setup
 
@@ -372,7 +385,7 @@ mypy src/
 
 ## Built With GitHub Copilot
 
-This project was built end-to-end using **GitHub Copilot Agent Mode** in VS Code — from initial architecture design and agent implementations to the React UI, Docker configurations, Azure deployment scripts, and iterative debugging. Copilot Agent Mode was used not just for code generation but as an active development partner: researching APIs, diagnosing race conditions, auditing CSS for UI bugs, and reasoning through multi-agent orchestration patterns.
+This project was built using **GitHub Copilot Agent Mode** in VS Code — The initial architecture design was communicated with TEXT files and prompts leading to agent implementations with the React UI, Docker configurations, and iterative debugging. Copilot Agent Mode was used not just for code generation but as an active development partner: researching APIs, diagnosing race conditions, auditing CSS for UI bugs, and reasoning through multi-agent orchestration patterns.
 
 ---
 

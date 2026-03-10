@@ -2,7 +2,7 @@
 # Generated from pyproject.toml – install via: pip install -r requirements.txt
 
 # ── Azure SDK ────────────────────────────────────────────
-azure-identity>=1.16
+azure-identity>=1.17
 azure-cosmos>=4.7
 azure-search-documents>=11.6
 azure-ai-inference
