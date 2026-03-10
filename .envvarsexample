@@ -34,9 +34,7 @@ AZURE_STORAGE_CONTAINER=
 AZURE_OPENAI_REALTIME_ENDPOINT=
 AZURE_OPENAI_REALTIME_KEY=
 AZURE_OPENAI_REALTIME_DEPLOYMENT=
-# ── Azure Speech (Whisper) ───────────────────────────────────
-AZURE_SPEECH_KEY=
-AZURE_SPEECH_REGION=
+
 
 # ── Application ──────────────────────────────────────────────
 MEDNEXUS_LOG_LEVEL=
