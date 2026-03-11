@@ -20,6 +20,7 @@ venv/
 /.venv/
 .env.*
 node_modules/
-
+src/mednexus/functions
+/host.json
 
 
