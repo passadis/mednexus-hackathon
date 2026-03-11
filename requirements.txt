@@ -7,7 +7,7 @@ azure-cosmos>=4.7
 azure-search-documents>=11.6
 azure-ai-inference
 azure-storage-blob>=12.20
-azure-functions>=1.20
+
 
 # ── AI / LLM ─────────────────────────────────────────────
 openai>=1.40

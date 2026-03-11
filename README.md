@@ -113,8 +113,7 @@ mednexus-hackathon/
 │   │   ├── search_client.py     # AI Search RAG queries
 │   │   ├── speech_client.py     # Whisper transcription
 │   │   └── fhir_export.py       # FHIR R4 Bundle export
-│   ├── functions/
-│   │   └── function_app.py # Azure Functions blob trigger
+│   ├
 │   └── config.py           # pydantic-settings configuration
 ├── ui/                     # React + Vite + Tailwind frontend
 │   ├── src/
@@ -137,10 +136,12 @@ mednexus-hackathon/
 │   └── samples/            # Judge test data (sample-01, sample-02)
 ├── docker-compose.yml
 ├── Dockerfile
+|── Dockerfile.backend
+|── Dockefile.frontend
 ├── Dockerfile.ui
 ├── pyproject.toml
 ├── requirements.txt
-└── .env.example
+└── .envvarsexample
 ```
 
 ---
