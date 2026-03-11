@@ -5,6 +5,7 @@ import { AgentChatter } from './components/AgentChatter';
 import { ChatPanel } from './components/ChatPanel';
 import { PatientGrid } from './components/PatientGrid';
 import { PatientPortal } from './components/PatientPortal';
+import { ObservabilityPage } from './components/ObservabilityPage';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePatientContext } from './hooks/usePatientContext';
 
@@ -21,13 +22,17 @@ export function App() {
   return <DoctorApp />;
 }
 
+type View = 'grid' | 'patient' | 'observability';
+
 function DoctorApp() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [view, setView] = useState<View>('grid');
   const { context, loading, error, refresh } = usePatientContext(selectedPatientId);
   const { messages } = useWebSocket(refresh);
 
   const handleSelectPatient = useCallback((id: string) => {
     setSelectedPatientId(id);
+    setView('patient');
   }, []);
 
   const handleNewEpisode = useCallback(async () => {
@@ -59,6 +64,7 @@ function DoctorApp() {
 
   const handleBackToGrid = useCallback(() => {
     setSelectedPatientId('');
+    setView('grid');
   }, []);
 
   const handleDeletePatient = useCallback(async (id: string) => {
@@ -96,11 +102,15 @@ function DoctorApp() {
         activeEpisodeId={context?.active_episode_id ?? null}
         onNewEpisode={handleNewEpisode}
         onActivateEpisode={handleActivateEpisode}
+        currentView={view}
+        onNavigateObservability={() => { setSelectedPatientId(''); setView('observability'); }}
       />
 
       {/* Main content: Grid (home) or Workspace (patient detail) */}
       <main className="flex flex-1 overflow-hidden">
-        {selectedPatientId ? (
+        {view === 'observability' ? (
+          <ObservabilityPage onBackToGrid={handleBackToGrid} />
+        ) : view === 'patient' && selectedPatientId ? (
           <ClinicalWorkspace
             context={context}
             loading={loading}
@@ -113,7 +123,7 @@ function DoctorApp() {
         )}
 
         {/* Right panel: Agent Chatter (only in workspace view) */}
-        {selectedPatientId && <AgentChatter messages={messages} />}
+        {view === 'patient' && selectedPatientId && <AgentChatter messages={messages} />}
       </main>
 
       {/* Floating Doctor Chat */}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home, Paperclip } from 'lucide-react';
+import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home, Paperclip, Shield } from 'lucide-react';
 import type { Episode } from '../types';
 
 interface SidebarProps {
@@ -10,6 +10,8 @@ interface SidebarProps {
   activeEpisodeId?: string | null;
   onNewEpisode?: () => void;
   onActivateEpisode?: (episodeId: string) => void;
+  currentView?: string;
+  onNavigateObservability?: () => void;
 }
 
 export function Sidebar({
@@ -20,6 +22,8 @@ export function Sidebar({
   activeEpisodeId,
   onNewEpisode,
   onActivateEpisode,
+  currentView,
+  onNavigateObservability,
 }: SidebarProps) {
   const [searchInput, setSearchInput] = useState('');
 
@@ -155,8 +159,21 @@ export function Sidebar({
         </div>
       )}
 
-      {/* Status indicators */}
-      <div className="mt-auto border-t border-slate-100 p-4">
+      {/* Observability + Status */}
+      <div className="mt-auto border-t border-slate-100 p-4 space-y-3">
+        {onNavigateObservability && (
+          <button
+            type="button"
+            onClick={onNavigateObservability}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+              currentView === 'observability'
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+            }`}
+          >
+            <Shield className="h-4 w-4" /> Observability
+          </button>
+        )}
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <div className="h-2 w-2 rounded-full bg-medical-green animate-pulse" />
           <span>System Online</span>

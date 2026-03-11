@@ -283,3 +283,33 @@ async def index_document(
     ) as client:
         await client.upload_documents(documents=[document])
         logger.info("document_indexed", doc_id=document.get("id"))
+
+
+async def index_my_story(patient_id: str, story: dict[str, Any]) -> None:
+    """Index a patient's My Story into AI Search for RAG retrieval."""
+    import re
+
+    safe_id = re.sub(r"[^a-zA-Z0-9_=\-]", "_", patient_id)
+    content_parts = []
+    if story.get("preferred_name"):
+        content_parts.append(f"Patient prefers to be called {story['preferred_name']}.")
+    if story.get("brings_joy"):
+        content_parts.append(f"What brings joy: {story['brings_joy']}")
+    if story.get("care_team_needs_to_know"):
+        content_parts.append(f"Care team should know: {story['care_team_needs_to_know']}")
+    if story.get("brings_peace"):
+        content_parts.append(f"What brings peace: {story['brings_peace']}")
+
+    content = " ".join(content_parts)
+    if not content:
+        return
+
+    await index_document({
+        "id": f"{safe_id}-my_story",
+        "patient_id": patient_id,
+        "content_type": "my_story",
+        "content": content,
+        "analysis_summary": f"Patient personal story: {content[:200]}",
+        "source_agent": "doctor_input",
+        "timestamp": story.get("recorded_at", ""),
+    })

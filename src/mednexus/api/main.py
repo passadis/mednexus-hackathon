@@ -693,6 +693,118 @@ async def export_fhir(patient_id: str, episode_id: str) -> dict[str, Any]:
     return bundle
 
 
+# ── My Story: Patient Empathy Narrative ──────────────────────
+
+
+class _MyStoryRequest(_PydBaseModel):
+    preferred_name: str = ""
+    brings_joy: str = ""
+    care_team_needs_to_know: str = ""
+    brings_peace: str = ""
+    recorded_by: str = ""  # "staff", "family", or "patient"
+
+
+@app.get("/api/patients/{patient_id}/mystory")
+async def get_my_story(patient_id: str) -> dict[str, Any]:
+    """Retrieve a patient's personal story."""
+    cosmos = get_cosmos_manager()
+    doc = await cosmos.get_my_story(patient_id)
+    if doc is None:
+        return {"patient_id": patient_id, "exists": False}
+    return {**doc, "exists": True}
+
+
+@app.post("/api/patients/{patient_id}/mystory")
+async def save_my_story(patient_id: str, body: _MyStoryRequest) -> dict[str, Any]:
+    """Save or update a patient's personal story and index for RAG."""
+    from datetime import datetime, timezone
+    from mednexus.services.search_client import index_my_story
+
+    cosmos = get_cosmos_manager()
+    story = body.model_dump()
+    story["recorded_at"] = datetime.now(timezone.utc).isoformat()
+
+    doc = await cosmos.save_my_story(patient_id, story)
+
+    # Index into AI Search so Patient Historian RAG can find it
+    try:
+        await index_my_story(patient_id, story)
+    except Exception:
+        logger.warning("my_story_index_failed", patient_id=patient_id, exc_info=True)
+
+    logger.info("my_story_saved", patient_id=patient_id, recorded_by=body.recorded_by)
+    return {**doc, "exists": True}
+
+
+# ── Observability: Audit Trail & Platform Stats ──────────────
+
+
+@app.get("/api/audit")
+async def audit_trail(limit: int = Query(default=100, le=500)) -> list[dict[str, Any]]:
+    """Return recent MCP audit entries (HIPAA-compliant access log)."""
+    from mednexus.mcp.audit import get_audit_logger
+
+    return get_audit_logger().get_recent(limit)
+
+
+@app.get("/api/stats")
+async def platform_stats() -> dict[str, Any]:
+    """Aggregate platform statistics for the observability dashboard."""
+    from mednexus.mcp.audit import get_audit_logger
+
+    cosmos = get_cosmos_manager()
+    bus = get_a2a_bus()
+
+    # Patient count from Cosmos
+    patients: list[dict[str, Any]] = []
+    try:
+        container = await cosmos._ensure_container()
+        patients = [
+            doc async for doc in container.query_items(
+                query="SELECT c.id, c.patient_id, c.status FROM c",
+                enable_cross_partition_query=True,
+            )
+        ]
+    except Exception:
+        pass
+
+    # Audit entries
+    audit_entries = get_audit_logger().get_recent(500)
+
+    # Agent message counts
+    recent_messages = bus.get_recent_messages(200)
+    agent_msg_counts: dict[str, int] = {}
+    for msg in recent_messages:
+        sender = msg.get("sender", "unknown")
+        agent_msg_counts[sender] = agent_msg_counts.get(sender, 0) + 1
+
+    # Audit breakdown by agent
+    agent_audit_counts: dict[str, int] = {}
+    op_counts: dict[str, int] = {}
+    success_count = 0
+    failure_count = 0
+    for entry in audit_entries:
+        agent = entry.get("agent_id", "unknown")
+        agent_audit_counts[agent] = agent_audit_counts.get(agent, 0) + 1
+        op = entry.get("operation", "unknown")
+        op_counts[op] = op_counts.get(op, 0) + 1
+        if entry.get("success", True):
+            success_count += 1
+        else:
+            failure_count += 1
+
+    return {
+        "patients_total": len(patients),
+        "audit_events_total": len(audit_entries),
+        "a2a_messages_total": len(recent_messages),
+        "agent_message_counts": agent_msg_counts,
+        "agent_audit_counts": agent_audit_counts,
+        "operation_counts": op_counts,
+        "audit_success": success_count,
+        "audit_failure": failure_count,
+    }
+
+
 # ── Doctor Chat (Conversational Concierge) ───────────────────
 
 

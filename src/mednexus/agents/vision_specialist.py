@@ -3,7 +3,6 @@
 Pipeline:
   1. Receive an image file URI from the Orchestrator.
   2. Read raw bytes via the MCP layer.
-  3. Send to Azure AI Vision for low-level feature extraction.
   4. Send image + features to GPT-4o (multimodal) for clinical interpretation.
   5. Return structured radiology-style finding.
 """

@@ -107,6 +107,30 @@ class CosmosStateManager:
         except exceptions.CosmosResourceNotFoundError:
             return False
 
+    # ── My Story ─────────────────────────────────────────────
+
+    async def get_my_story(self, patient_id: str) -> dict | None:
+        """Retrieve a patient's My Story document (point-read)."""
+        container = await self._ensure_container()
+        doc_id = f"{patient_id}__mystory"
+        try:
+            return await container.read_item(item=doc_id, partition_key=patient_id)
+        except exceptions.CosmosResourceNotFoundError:
+            return None
+
+    async def save_my_story(self, patient_id: str, story: dict) -> dict:
+        """Create or update a patient's My Story document."""
+        container = await self._ensure_container()
+        doc = {
+            "id": f"{patient_id}__mystory",
+            "patient_id": patient_id,
+            "doc_type": "my_story",
+            **story,
+        }
+        await container.upsert_item(doc)
+        logger.info("my_story_saved", patient_id=patient_id)
+        return doc
+
     # ── Cleanup ──────────────────────────────────────────────
 
     async def close(self) -> None:

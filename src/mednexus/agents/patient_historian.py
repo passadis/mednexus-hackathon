@@ -16,6 +16,7 @@ This agent handles three data types for the vector pipeline:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -211,8 +212,9 @@ class PatientHistorianAgent(BaseAgent):
         """Push a document into Azure AI Search (auto-embeds)."""
         from mednexus.services.search_client import index_document
 
+        safe_id = re.sub(r"[^a-zA-Z0-9_=\-]", "_", patient_id)
         doc: dict[str, Any] = {
-            "id": f"{patient_id}-{content_type}-{uuid.uuid4().hex[:8]}",
+            "id": f"{safe_id}-{content_type}-{uuid.uuid4().hex[:8]}",
             "patient_id": patient_id,
             "content_type": content_type,
             "source_agent": "patient_historian",

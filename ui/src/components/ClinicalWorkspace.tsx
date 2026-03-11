@@ -8,6 +8,7 @@ import { EpisodeCard } from './cards/EpisodeCard';
 import { CrossEpisodeCard } from './cards/CrossEpisodeCard';
 import { FileUploader } from './FileUploader';
 import { StatusBadge } from './StatusBadge';
+import { MyStoryCard } from './MyStoryCard';
 
 interface ClinicalWorkspaceProps {
   context: PatientContext | null;
@@ -121,6 +122,9 @@ export function ClinicalWorkspace({ context, loading, error, onRefresh, onDelete
           />
         </div>
       </div>
+
+      {/* My Story — Patient Empathy Narrative */}
+      <MyStoryCard patientId={context.patient.patient_id} />
 
       {/* ── Episode-Based Layout ─────────────────────────── */}
       {hasEpisodes ? (

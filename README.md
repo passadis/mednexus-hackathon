@@ -40,6 +40,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 - **EHR-ready FHIR R4 export.** Signed-off episodes can be exported as standards-compliant FHIR R4 transaction Bundles (Patient + DiagnosticReport + Observations), ready to feed into downstream EHR systems.
 - **Visual agent pipeline stepper.** Each episode card shows a horizontal 4-step pipeline (Intake → Specialist → Cross-Check → Synthesis) with animated progress — green checkmarks for completed steps, a pulsing indicator for the active step, and specialist details pulled from the activity log.
 - **Doctor Chat Assistant.** A floating chat panel powered by GPT-4o with function-calling tools. Doctors can ask natural-language questions like *"Show me the last patient"* or *"What did the X-ray find?"* — the assistant queries patients, loads contexts, and retrieves findings or synthesis reports on demand.
+- **Platform Observability dashboard.** A built-in admin page (accessible from the sidebar) showing real-time platform stats, per-agent activity breakdowns, MCP operation counts, success/failure rates, and a filterable HIPAA audit trail table — giving operators full visibility into agent behaviour without leaving the UI.
 - **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
 
 ### Who it's for
@@ -68,9 +69,9 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 
 ## Architecture
 
-![MedNexus Architecture](mednexus-imagearchitecture.png)
+![MedNexus Architecture](mednexus-diagram.png)
 
-### Agent Pipeline
+### Agent Pipelines
 
 1. **Clinical Sorter** — Monitors the MCP drop-folder, classifies incoming files (PDF, DICOM, IMAGE, AUDIO, LAB_CSV) and extracts patient IDs from filenames. **Phase 3:** Primary consumer of the MCP Clinical Data Gateway — uses `get_patient_records` and `fetch_medical_image` tools.
 2. **Vision Specialist** — Processes medical images via GPT-4o multimodal. Returns structured findings with region, observations, impression, and confidence scores. **Phase 3:** Routes image access through the Clinical Data Gateway for audit logging.
@@ -126,6 +127,7 @@ mednexus-hackathon/
 │   │   │   ├── StatusBadge.tsx
 │   │   │   ├── AgentStepper.tsx  # Visual pipeline progress per episode
 │   │   │   ├── ChatPanel.tsx     # Doctor Chat Assistant (GPT-4o)
+│   │   │   ├── ObservabilityPage.tsx # Admin observability dashboard
 │   │   │   └── cards/      # Multimodal display cards
 │   │   ├── hooks/          # useWebSocket, usePatientContext
 │   │   └── types.ts        # Shared TypeScript interfaces
@@ -286,6 +288,8 @@ When `AZURE_STORAGE_CONNECTION_STRING` is set, the MCP layer uses Azure Blob Sto
 | `WS` | `/ws/chatter` | Live Agent-to-Agent message stream |
 | `GET` | `/api/images/{filename}` | Proxy medical image bytes for UI rendering |
 | `GET` | `/api/chatter/history` | Recent A2A messages for late-joining clients |
+| `GET` | `/api/audit` | HIPAA audit trail (MCP gateway access log) |
+| `GET` | `/api/stats` | Platform statistics (patients, agents, operations) |
 | `GET` | `/api/portal/context?token=...` | Patient portal context (JWT-secured) |
 | `POST` | `/api/portal/chat?token=...` | Patient portal text chat (episode-scoped) |
 | `WS` | `/ws/portal/voice?token=...` | Patient portal realtime voice assistant proxy |
