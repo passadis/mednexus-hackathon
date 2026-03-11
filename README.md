@@ -151,11 +151,13 @@ mednexus-hackathon/
 - **Python 3.11+**
 - **Node.js 20+** (for the UI)
 - An **Azure subscription** with the following services provisioned:
-  - Azure OpenAI (GPT-4o deployment)
+  - Azure OpenAI (GPT-4o deployment, Whisper transcription)
+  - Microsoft Foundry (GPT Realtime Model, for Patient Assistant)
   - Azure Cosmos DB (NoSQL API)
   - Azure AI Search
   - Azure Blob Storage
-  - Azure Speech Services (optional, for Whisper transcription)
+  - User Assigned Managed Identity
+  - Azure Container Apps Environment
 
 ---
 
@@ -211,26 +213,54 @@ docker run -p 8000:8000 --env-file .env mednexus
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|---|---|---|
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI resource endpoint | Yes |
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | Yes |
-| `AZURE_OPENAI_DEPLOYMENT` | Model deployment name (default: `gpt-4o`) | No |
-| `COSMOS_ENDPOINT` | Cosmos DB endpoint | Yes |
-| `COSMOS_KEY` | Cosmos DB primary key | Yes |
-| `COSMOS_DATABASE` | Database name (default: `mednexus`) | No |
-| `COSMOS_CONTAINER` | Container name (default: `clinical_contexts`) | No |
-| `AZURE_SEARCH_ENDPOINT` | Azure AI Search endpoint | Yes |
-| `AZURE_SEARCH_KEY` | Azure AI Search admin key | Yes |
-| `AZURE_SEARCH_INDEX` | Search index name (default: `mednexus-clinical`) | No |
-| `AZURE_STORAGE_CONNECTION_STRING` | Blob Storage connection string | No* |
-| `AZURE_STORAGE_CONTAINER` | Blob container name | No* |
-| `AZURE_SPEECH_KEY` | Azure Speech key (for Whisper) | No |
-| `AZURE_SPEECH_REGION` | Azure Speech region (default: `eastus`) | No |
-| `MCP_DROP_FOLDER` | Local file intake path (default: `./data/intake`) | No |
-| `MEDNEXUS_CORS_ORIGINS` | Allowed CORS origins, comma-separated | No |
+| Variable | Description |
+|---|---|
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI resource endpoint |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key |
+| `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI text model deployment name |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embedding model deployment name |
+| `AZURE_OPENAI_EMBEDDING_DIMENSIONS` | Embedding vector dimensions |
+| `AZURE_OPENAI_WHISPER_DEPLOYMENT` | Whisper speech-to-text deployment name |
+| `AZURE_AI_VISION_ENDPOINT` | Azure AI Vision endpoint |
+| `AZURE_AI_VISION_KEY` | Azure AI Vision key |
+| `AZURE_SEARCH_ENDPOINT` | Azure AI Search endpoint |
+| `AZURE_SEARCH_KEY` | Azure AI Search key |
+| `AZURE_SEARCH_INDEX` | Azure AI Search index name |
+| `COSMOS_ENDPOINT` | Cosmos DB endpoint |
+| `COSMOS_KEY` | Cosmos DB key |
+| `COSMOS_DATABASE` | Cosmos DB database name |
+| `COSMOS_CONTAINER` | Cosmos DB container name |
+| `AZURE_STORAGE_CONNECTION_STRING` | Blob Storage connection string |
+| `AZURE_STORAGE_CONTAINER` | Blob Storage container name |
+| `AZURE_OPENAI_REALTIME_ENDPOINT` | Azure OpenAI Realtime endpoint |
+| `AZURE_OPENAI_REALTIME_KEY` | Azure OpenAI Realtime key |
+| `AZURE_OPENAI_REALTIME_DEPLOYMENT` | Azure OpenAI Realtime deployment name |
+| `MEDNEXUS_LOG_LEVEL` | Application log level |
+| `MEDNEXUS_CORS_ORIGINS` | Allowed CORS origins (comma-separated) |
+| `MCP_DROP_FOLDER` | Local drop-folder path |
+| `PORTAL_JWT_SECRET` | JWT secret used to sign portal tokens |
+| `PORTAL_JWT_EXPIRY_HOURS` | Portal token expiry in hours |
 
-\* When `AZURE_STORAGE_CONNECTION_STRING` is set, the MCP layer uses Azure Blob Storage; otherwise it falls back to the local filesystem.
+Additional Managed Identity variables:
+
+| Variable | Description |
+|---|---|
+| `USE_MANAGED_IDENTITY` | Managed Identity toggle (`true` / `false`) |
+| `MANAGED_IDENTITY_CLIENT_ID` | User-assigned Managed Identity client ID |
+| `AZURE_STORAGE_ACCOUNT_URL` | Storage account URL used with Managed Identity |
+
+Managed Identity roles:
+
+- `AcrPull`
+- `Storage Blob Data Contributor`
+- `Azure AI Developer`
+- `Cognitive Services OpenAI Contributor`
+- `Search Index Data Contributor`
+- `Key Vault Secrets User`
+
+
+When `AZURE_STORAGE_CONNECTION_STRING` is set, the MCP layer uses Azure Blob Storage; otherwise it falls back to the local filesystem.
 
 ---
 
@@ -251,12 +281,14 @@ docker run -p 8000:8000 --env-file .env mednexus
 | `PATCH` | `/api/patients/{id}/episodes/{eid}/synthesis` | Edit Synthesis Report before MD sign-off |
 | `POST` | `/api/patients/{id}/approve` | MD sign-off on Synthesis Report (Human-in-the-Loop) |
 | `GET` | `/api/patients/{id}/episodes/{eid}/fhir` | **FHIR R4 Export** — download signed-off episode as a FHIR Bundle |
+| `POST` | `/api/patients/{id}/episodes/{eid}/share` | Generate a signed patient portal token for an approved episode |
 | `POST` | `/api/chat` | Doctor Chat with GPT-4o function-calling |
 | `WS` | `/ws/chatter` | Live Agent-to-Agent message stream |
+| `GET` | `/api/images/{filename}` | Proxy medical image bytes for UI rendering |
 | `GET` | `/api/chatter/history` | Recent A2A messages for late-joining clients |
-| `GET` | `/portal/{token}` | Patient Share Portal (JWT-secured) |
-| `POST` | `/portal/{token}/chat` | Patient portal text chat |
-| `GET` | `/portal/{token}/voice-config` | Voice assistant config for Patient Voice Portal |
+| `GET` | `/api/portal/context?token=...` | Patient portal context (JWT-secured) |
+| `POST` | `/api/portal/chat?token=...` | Patient portal text chat (episode-scoped) |
+| `WS` | `/ws/portal/voice?token=...` | Patient portal realtime voice assistant proxy |
 
 ---
 
@@ -375,11 +407,11 @@ mypy src/
 | **State** | Azure Cosmos DB (NoSQL API) |
 | **Search / RAG** | Azure AI Search |
 | **Storage** | Azure Blob Storage |
-| **Speech** | Azure OpenAI Whisper |
+| **Speech** | Azure OpenAI Whisper | Microsoft Foundry OpenAI gpt-realtime-1.5
 | **Interoperability** | FHIR R4 (fhir.resources) |
 | **Backend** | FastAPI + Uvicorn |
 | **Frontend** | React 19 + Vite 6 + TypeScript + Tailwind CSS |
-| **Infrastructure** | Docker, Azure Container Apps, Azure Functions |
+| **Infrastructure** | Docker, Azure Container Apps |
 | **Dev Tools** | VS Code, GitHub Copilot Agent Mode, GitHub |
 
 ---
@@ -393,3 +425,4 @@ This project was built using **GitHub Copilot Agent Mode** in VS Code — The in
 ## License
 
 This project was built for the **AI Dev Days Hackathon 2026**. See LICENSE for details.
+Owner: passadis@outlook.com

@@ -44,3 +44,8 @@ MCP_DROP_FOLDER=
 # ── Portal JWT ───────────────────────────────────────────
 PORTAL_JWT_SECRET=
 PORTAL_JWT_EXPIRY_HOURS=
+
+# ── Managed Identity ───────────────────────────────────────────
+USE_MANAGED_IDENTITY=
+MANAGED_IDENTITY_CLIENT_ID=
+AZURE_STORAGE_ACCOUNT_URL=
