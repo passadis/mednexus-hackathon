@@ -69,7 +69,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 
 ## Architecture
 
-![MedNexus Architecture](mednexus-diagram.png)
+![MedNexus Architecture](architecture.png)
 
 ### Agent Pipelines
 
