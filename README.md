@@ -42,6 +42,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 - **Doctor Chat Assistant.** A floating chat panel powered by GPT-4o with function-calling tools. Doctors can ask natural-language questions like *"Show me the last patient"* or *"What did the X-ray find?"* — the assistant queries patients, loads contexts, and retrieves findings or synthesis reports on demand.
 - **Platform Observability dashboard.** A built-in admin page (accessible from the sidebar) showing real-time platform stats, per-agent activity breakdowns, MCP operation counts, success/failure rates, and a filterable HIPAA audit trail table — giving operators full visibility into agent behaviour without leaving the UI.
 - **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
+- **"My Story" — Empathy Addon.** Inspired by Johns Hopkins' *This Is My Story* (TIMS) research — studies show a 74 % increase in empathy and 99 % improvement in meaningful interactions when care teams know the patient as a person. A compact card on every patient view captures four questions: *How do you prefer to be addressed?*, *What brings you joy?*, *What does your care team need to know?*, and *What brings you peace?* Answers are persisted to Cosmos DB **and** indexed into AI Search, so the Patient Historian RAG agent automatically discovers personal context alongside clinical findings — enabling synthesis reports that reference the whole patient, not just the diagnosis.
 
 ### Who it's for
 
@@ -78,6 +79,88 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 3. **Patient Historian** — Performs RAG via Azure AI Search. Extracts text from PDFs, transcribes audio (Whisper), and synthesizes patient history.
 4. **Orchestrator** — State-machine controller. Routes files to appropriate specialists, tracks status transitions in Cosmos DB, and triggers synthesis when all modalities arrive.
 5. **Diagnostic Synthesis** — Cross-modality analysis. Compares audio transcript statements against X-ray findings, identifies discrepancies, and produces a severity-rated Synthesis Report.
+
+### End-to-End Flow
+
+```mermaid
+sequenceDiagram
+    actor Doc as 🩺 Doctor
+    participant UI as Doctor UI
+    participant API as FastAPI
+    participant MCP as MCP Layer<br/>(Blob / Local FS)
+    participant CS as Clinical Sorter
+    participant ORC as Orchestrator
+    participant VS as Vision Specialist<br/>(GPT-4o)
+    participant PH as Patient Historian<br/>(RAG · Whisper)
+    participant DS as Diagnostic Synthesis
+    participant DB as Cosmos DB
+    participant SRH as AI Search
+    actor Pat as 📱 Patient
+
+    Note over Doc,Pat: ── File Intake & Classification ──
+
+    Doc->>UI: Upload files (X-ray, PDF, audio, CSV)
+    UI->>API: POST /api/patients/{id}/upload
+    API->>MCP: Store file (Blob / FS)
+    API->>DB: Create/update ClinicalContext
+    API->>CS: Classify & route file
+    CS->>CS: Detect modality (IMAGE / PDF / AUDIO / CSV)
+    CS-->>UI: 🔔 A2A chatter (classification result)
+    CS->>ORC: Hand off classified file
+
+    Note over ORC,DS: ── Parallel Specialist Analysis ──
+
+    ORC->>DB: Update status → waiting_for_specialists
+    
+    par Image Analysis
+        ORC->>VS: Process medical image
+        VS->>VS: GPT-4o multimodal analysis
+        VS-->>UI: 🔔 A2A chatter (findings)
+        VS->>ORC: Return structured findings
+    and Text / Audio / Lab Analysis
+        ORC->>PH: Process PDF / audio / CSV
+        PH->>SRH: Index document + embeddings
+        PH->>PH: Whisper transcription (if audio)
+        PH->>SRH: Hybrid search (keyword + vector)
+        PH-->>UI: 🔔 A2A chatter (history summary)
+        PH->>ORC: Return findings
+    end
+
+    ORC->>DB: Store all findings
+
+    Note over ORC,DS: ── Cross-Modality Synthesis ──
+
+    ORC->>DS: All modalities ready → synthesize
+    DS->>DS: Compare audio vs X-ray<br/>Flag discrepancies
+    DS->>DB: Store Synthesis Report
+    DS-->>UI: 🔔 A2A chatter (synthesis complete)
+    UI->>Doc: Display Synthesis Report
+
+    Note over Doc,UI: ── Doctor Review & Sign-Off ──
+
+    Doc->>UI: Edit summary / recommendations (optional)
+    UI->>API: PATCH /episodes/{eid}/synthesis
+    Doc->>UI: Approve & Sign-off
+    UI->>API: POST /approve (physician name)
+    API->>DB: Status → APPROVED (attribution logged)
+
+    Note over Doc,Pat: ── Output & Patient Portal ──
+
+    Doc->>UI: Export FHIR R4 Bundle
+    UI->>API: GET /episodes/{eid}/fhir
+    API-->>Doc: 📄 FHIR Bundle JSON
+
+    Doc->>UI: Share with patient
+    UI->>API: POST /episodes/{eid}/share
+    API-->>UI: 🔗 Signed JWT link + QR code
+
+    Pat->>API: Open portal link (JWT token)
+    API-->>Pat: Plain-language summary
+    Pat->>API: "What does my X-ray show?"
+    API-->>Pat: Episode-scoped GPT-4o response
+    Pat->>API: 🎙️ Voice question (Realtime API)
+    API-->>Pat: 🔊 Spoken answer
+```
 
 ---
 
@@ -128,6 +211,7 @@ mednexus-hackathon/
 │   │   │   ├── AgentStepper.tsx  # Visual pipeline progress per episode
 │   │   │   ├── ChatPanel.tsx     # Doctor Chat Assistant (GPT-4o)
 │   │   │   ├── ObservabilityPage.tsx # Admin observability dashboard
+│   │   │   ├── MyStoryCard.tsx   # "My Story" empathy addon (4-question card)
 │   │   │   └── cards/      # Multimodal display cards
 │   │   ├── hooks/          # useWebSocket, usePatientContext
 │   │   └── types.ts        # Shared TypeScript interfaces
@@ -288,6 +372,8 @@ When `AZURE_STORAGE_CONNECTION_STRING` is set, the MCP layer uses Azure Blob Sto
 | `WS` | `/ws/chatter` | Live Agent-to-Agent message stream |
 | `GET` | `/api/images/{filename}` | Proxy medical image bytes for UI rendering |
 | `GET` | `/api/chatter/history` | Recent A2A messages for late-joining clients |
+| `GET` | `/api/patients/{id}/mystory` | Retrieve a patient's My Story empathy narrative |
+| `POST` | `/api/patients/{id}/mystory` | Save/update My Story and index for RAG |
 | `GET` | `/api/audit` | HIPAA audit trail (MCP gateway access log) |
 | `GET` | `/api/stats` | Platform statistics (patients, agents, operations) |
 | `GET` | `/api/portal/context?token=...` | Patient portal context (JWT-secured) |
@@ -329,6 +415,34 @@ Before approving, doctors can **edit the Synthesis Report** directly in the UI �
 
 ### Human-in-the-Loop MD Sign-Off
 The Synthesis Report card in the AGUI includes a prominent **"Approve and Sign-off by MD"** button. When clicked, it prompts for the physician's name and calls `POST /api/patients/{id}/approve`. The context transitions to `APPROVED` status with full attribution (who, when, notes). This ensures no diagnostic output leaves the system without a qualified human review.
+
+### Platform Observability Dashboard
+A dedicated admin page accessible from the sidebar gives operators real-time visibility into the entire platform without leaving the UI. It is powered by two backend endpoints:
+
+- **`GET /api/stats`** — returns aggregate counters: total patients, total findings, per-agent activity breakdown (how many findings each agent produced), agent status, MCP operation counts, and success/failure rates.
+- **`GET /api/audit`** — returns the most recent HIPAA-compliant audit trail entries from the MCP Clinical Data Gateway (`MCPAuditLogger`), each with timestamp, agent ID, patient ID, action, and outcome.
+
+The frontend (`ObservabilityPage.tsx`) renders this data as:
+| Section | What it shows |
+|---|---|
+| **Stat cards** | Patients, findings, agents, MCP operations at a glance |
+| **Agent activity chart** | Horizontal bar breakdown by agent (how many findings each produced) |
+| **MCP operations chart** | Success vs. failure counts across gateway tool calls |
+| **Audit trail table** | Filterable, scrollable log of every MCP access event with timestamps and status badges |
+
+The page uses the same view-state pattern as the rest of the app (`View = 'grid' | 'patient' | 'observability'`) — no router needed. A sidebar button toggles the view, and a "Back to Patient Grid" button returns to the main workflow. All data refreshes on each visit; no polling or WebSocket connection is required.
+
+### "My Story" — Patient Empathy Narrative
+Inspired by Johns Hopkins' *This Is My Story* (TIMS) research (Bains et al., JMIR Medical Informatics 2026), which demonstrated a **74 % increase in clinician empathy** and **69 % reduction in patient distress** when care teams engage with patients' personal narratives. MedNexus implements the four core TIMS questions in a compact, 2-column card on the patient view:
+
+1. **How do you prefer to be addressed?**
+2. **What brings you joy?**
+3. **What does your care team need to know about you?**
+4. **What brings you peace or comfort?**
+
+Answers are saved to Cosmos DB (`{patient_id}__mystory` document) and simultaneously indexed into Azure AI Search with `content_type: "my_story"`. Because the Patient Historian agent performs RAG via AI Search filtered by `patient_id`, personal narrative context **automatically surfaces** alongside clinical findings — without any modifications to existing agent code. This means synthesis reports can reference the patient as a whole person, not just a set of diagnostic data points.
+
+The card supports three recording sources (Staff, Family, Patient) and tracks `recorded_by` + `recorded_at` metadata for audit purposes.
 
 ### FHIR R4 Export
 Once an episode is signed off, doctors can **export it as a FHIR R4 transaction Bundle** (`GET /api/patients/{id}/episodes/{eid}/fhir`). The bundle contains:

@@ -89,7 +89,7 @@ class CosmosStateManager:
     async def list_contexts(self, limit: int = 50) -> list[ClinicalContext]:
         """Return the most recent Clinical Contexts (cross-partition query)."""
         container = await self._ensure_container()
-        query = "SELECT * FROM c ORDER BY c.updated_at DESC OFFSET 0 LIMIT @limit"
+        query = "SELECT * FROM c WHERE NOT IS_DEFINED(c.doc_type) ORDER BY c.updated_at DESC OFFSET 0 LIMIT @limit"
         items: list[ClinicalContext] = []
         async for doc in container.query_items(
             query=query,
@@ -99,13 +99,18 @@ class CosmosStateManager:
         return items
 
     async def delete_context(self, patient_id: str) -> bool:
-        """Delete a Clinical Context."""
+        """Delete a Clinical Context and associated documents (e.g. My Story)."""
         container = await self._ensure_container()
         try:
             await container.delete_item(item=patient_id, partition_key=patient_id)
-            return True
         except exceptions.CosmosResourceNotFoundError:
             return False
+        # Cascade-delete the My Story document if it exists
+        try:
+            await container.delete_item(item=f"{patient_id}__mystory", partition_key=patient_id)
+        except exceptions.CosmosResourceNotFoundError:
+            pass
+        return True
 
     # ── My Story ─────────────────────────────────────────────
 
