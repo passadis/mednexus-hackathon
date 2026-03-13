@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from contextlib import contextmanager
 from typing import Any
@@ -28,6 +29,17 @@ def configure_observability() -> None:
             return
 
         from azure.monitor.opentelemetry import configure_azure_monitor
+
+        auth_string_present = bool(os.getenv("APPLICATIONINSIGHTS_AUTHENTICATION_STRING"))
+        logger.info(
+            "azure_monitor_configuration_detected",
+            managed_identity=settings.use_managed_identity,
+            connection_string_present=bool(settings.applicationinsights_connection_string),
+            auth_string_present=auth_string_present,
+            client_id_present=bool(settings.managed_identity_client_id),
+        )
+        if settings.use_managed_identity and not auth_string_present:
+            logger.warning("azure_monitor_auth_string_missing")
 
         kwargs: dict[str, Any] = {
             "connection_string": settings.applicationinsights_connection_string,

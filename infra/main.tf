@@ -313,6 +313,12 @@ resource "azurerm_role_assignment" "openai_user" {
   principal_id         = azurerm_user_assigned_identity.apps.principal_id
 }
 
+resource "azurerm_role_assignment" "openai_ai_developer" {
+  scope                = azurerm_cognitive_account.openai.id
+  role_definition_name = "Azure AI Developer"
+  principal_id         = azurerm_user_assigned_identity.apps.principal_id
+}
+
 resource "azurerm_key_vault" "main" {
   name                       = local.key_vault_name
   location                   = azurerm_resource_group.rg.location

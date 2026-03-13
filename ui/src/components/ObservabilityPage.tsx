@@ -1,191 +1,329 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Shield,
+  Activity,
   BarChart3,
-  RefreshCw,
-  Home,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Users,
+  CalendarDays,
+  ClipboardList,
   FileText,
-  Radio,
-  ChevronDown,
-  ChevronUp,
-  Filter,
+  Home,
+  RefreshCw,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
+import type { PatientContext } from '../types';
 
-// ── Types ───────────────────────────────────────────────────
+interface DailyCount {
+  dayLabel: string;
+  value: number;
+}
 
-interface AuditEntry {
+interface NamedCount {
+  label: string;
+  value: number;
+}
+
+interface ActivityItem {
   timestamp: string;
-  operation: string;
-  agent_id: string;
-  patient_id: string;
-  params: Record<string, unknown>;
-  result_summary: string;
-  success: boolean;
+  patientId: string;
+  episodeLabel: string;
+  action: string;
+  detail: string;
 }
 
-interface PlatformStats {
-  patients_total: number;
-  audit_events_total: number;
-  a2a_messages_total: number;
-  agent_message_counts: Record<string, number>;
-  agent_audit_counts: Record<string, number>;
-  operation_counts: Record<string, number>;
-  audit_success: number;
-  audit_failure: number;
+interface DashboardData {
+  totalPatients: number;
+  inProgressCases: number;
+  completedSyntheses: number;
+  approvedEpisodes: number;
+  patientsPerDay: DailyCount[];
+  episodesPerDay: DailyCount[];
+  synthesisStatus: NamedCount[];
+  approvalsPerDoctor: NamedCount[];
+  modalityMix: NamedCount[];
+  recentActivity: ActivityItem[];
 }
 
-// ── Helpers ─────────────────────────────────────────────────
-
-const AGENT_COLORS: Record<string, string> = {
-  orchestrator: 'bg-purple-100 text-purple-700',
-  patient_historian: 'bg-blue-100 text-blue-700',
-  vision_specialist: 'bg-amber-100 text-amber-700',
-  clinical_sorter: 'bg-emerald-100 text-emerald-700',
-  diagnostic_synthesis: 'bg-rose-100 text-rose-700',
-};
-
-function agentBadge(agent: string) {
-  const color = AGENT_COLORS[agent] ?? 'bg-slate-100 text-slate-600';
-  const label = agent.replace(/_/g, ' ');
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${color}`}>
-      {label}
-    </span>
-  );
+function startOfMonthUtc(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function parseDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function formatDayLabel(date: Date) {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
-// ── Stat Card ───────────────────────────────────────────────
+function normalizeDoctorName(value?: string | null) {
+  return value && value.trim() ? value.trim() : 'Unassigned';
+}
+
+function isInProgress(status: string) {
+  return !['synthesis_complete', 'approved', 'finalized'].includes(status);
+}
+
+function humanizeLabel(value: string) {
+  return value.replace(/_/g, ' ');
+}
+
+function buildMonthBuckets(now: Date): { labels: string[]; keys: string[] } {
+  const start = startOfMonthUtc(now);
+  const labels: string[] = [];
+  const keys: string[] = [];
+  const cursor = new Date(start);
+
+  while (cursor <= now) {
+    keys.push(cursor.toISOString().slice(0, 10));
+    labels.push(formatDayLabel(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return { labels, keys };
+}
+
+function deriveDashboardData(patients: PatientContext[]): DashboardData {
+  const now = new Date();
+  const monthStart = startOfMonthUtc(now);
+  const { labels, keys } = buildMonthBuckets(now);
+
+  const patientCounts = new Map(keys.map((key) => [key, 0]));
+  const episodeCounts = new Map(keys.map((key) => [key, 0]));
+  const approvalsPerDoctor = new Map<string, number>();
+  const modalityCounts = new Map<string, number>();
+  const activity: ActivityItem[] = [];
+
+  let inProgressCases = 0;
+  let completedSyntheses = 0;
+  let approvedEpisodes = 0;
+
+  for (const patient of patients) {
+    const patientCreated = parseDate(patient.created_at);
+    if (patientCreated && patientCreated >= monthStart) {
+      const key = patientCreated.toISOString().slice(0, 10);
+      patientCounts.set(key, (patientCounts.get(key) ?? 0) + 1);
+    }
+
+    for (const episode of patient.episodes ?? []) {
+      const episodeCreated = parseDate(episode.created_at);
+      if (episodeCreated && episodeCreated >= monthStart) {
+        const key = episodeCreated.toISOString().slice(0, 10);
+        episodeCounts.set(key, (episodeCounts.get(key) ?? 0) + 1);
+      }
+
+      if (isInProgress(episode.status)) {
+        inProgressCases += 1;
+      }
+      if (episode.status === 'synthesis_complete') {
+        completedSyntheses += 1;
+      }
+      if (episode.status === 'approved') {
+        approvedEpisodes += 1;
+      }
+
+      if (episode.approved_by) {
+        const doctor = normalizeDoctorName(episode.approved_by);
+        approvalsPerDoctor.set(doctor, (approvalsPerDoctor.get(doctor) ?? 0) + 1);
+      }
+
+      for (const finding of episode.findings ?? []) {
+        const label =
+          finding.modality === 'radiology_image'
+            ? 'X-ray / Imaging'
+            : finding.modality === 'clinical_text'
+              ? 'Clinical Notes'
+              : finding.modality === 'audio_transcript'
+                ? 'Audio Transcript'
+                : humanizeLabel(finding.modality);
+        modalityCounts.set(label, (modalityCounts.get(label) ?? 0) + 1);
+      }
+
+      for (const item of episode.activity_log ?? []) {
+        activity.push({
+          timestamp: item.timestamp,
+          patientId: patient.patient.patient_id,
+          episodeLabel: episode.label,
+          action: item.action,
+          detail: item.detail,
+        });
+      }
+    }
+  }
+
+  const patientsPerDay = labels.map((dayLabel, index) => ({
+    dayLabel,
+    value: patientCounts.get(keys[index]) ?? 0,
+  }));
+
+  const episodesPerDay = labels.map((dayLabel, index) => ({
+    dayLabel,
+    value: episodeCounts.get(keys[index]) ?? 0,
+  }));
+
+  const synthesisStatus = [
+    { label: 'In Progress', value: inProgressCases },
+    { label: 'Synthesis Complete', value: completedSyntheses },
+    { label: 'Approved', value: approvedEpisodes },
+  ];
+
+  const approvalsChart = [...approvalsPerDoctor.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
+
+  const modalityMix = [...modalityCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
+
+  const recentActivity = activity
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))
+    .slice(0, 10);
+
+  return {
+    totalPatients: patients.length,
+    inProgressCases,
+    completedSyntheses,
+    approvedEpisodes,
+    patientsPerDay,
+    episodesPerDay,
+    synthesisStatus,
+    approvalsPerDoctor: approvalsChart,
+    modalityMix,
+    recentActivity,
+  };
+}
 
 function StatCard({
   label,
   value,
   icon: Icon,
-  accent = 'text-brand-600 bg-brand-50',
+  accent,
 }: {
   label: string;
   value: number | string;
   icon: typeof Users;
-  accent?: string;
+  accent: string;
 }) {
   return (
     <div className="card flex items-center gap-4">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${accent}`}>
+      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${accent}`}>
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="text-2xl font-bold text-slate-800">{value}</p>
-        <p className="text-xs text-slate-400">{label}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p>
       </div>
     </div>
   );
 }
 
-// ── Bar Chart (pure CSS) ────────────────────────────────────
-
-function HorizontalBar({ data, colorFn }: { data: Record<string, number>; colorFn?: (key: string) => string }) {
-  const max = Math.max(...Object.values(data), 1);
-  const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
-
+function VerticalBars({
+  title,
+  subtitle,
+  data,
+  tone,
+}: {
+  title: string;
+  subtitle: string;
+  data: DailyCount[];
+  tone: string;
+}) {
+  const max = Math.max(...data.map((item) => item.value), 1);
   return (
-    <div className="space-y-2">
-      {sorted.map(([key, count]) => {
-        const pct = Math.round((count / max) * 100);
-        const color = colorFn?.(key) ?? 'bg-brand-500';
-        const label = key.replace(/_/g, ' ');
-        return (
-          <div key={key}>
-            <div className="flex items-center justify-between text-xs mb-0.5">
-              <span className="font-medium text-slate-600 capitalize">{label}</span>
-              <span className="text-slate-400">{count}</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+    <div className="card">
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        <p className="text-xs text-slate-400">{subtitle}</p>
+      </div>
+      <div className="flex h-48 items-end gap-2 overflow-hidden">
+        {data.map((item, index) => (
+          <div key={`${item.dayLabel}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <div className="text-[10px] font-semibold text-slate-500">{item.value}</div>
+            <div className="flex h-32 w-full items-end rounded-t-xl bg-slate-100/80 px-[2px]">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${color}`}
-                style={{ width: `${pct}%` }}
+                className={`w-full rounded-t-lg transition-all duration-500 ${tone}`}
+                style={{ height: `${Math.max((item.value / max) * 100, item.value > 0 ? 8 : 0)}%` }}
               />
             </div>
+            <div className="w-full truncate text-center text-[10px] text-slate-400">{item.dayLabel}</div>
           </div>
-        );
-      })}
-      {sorted.length === 0 && (
-        <p className="text-xs text-slate-400 italic">No data yet</p>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Main Component ──────────────────────────────────────────
+function HorizontalBars({
+  title,
+  subtitle,
+  data,
+  tone,
+}: {
+  title: string;
+  subtitle: string;
+  data: NamedCount[];
+  tone: string;
+}) {
+  const max = Math.max(...data.map((item) => item.value), 1);
+  return (
+    <div className="card">
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        <p className="text-xs text-slate-400">{subtitle}</p>
+      </div>
+      <div className="space-y-3">
+        {data.map((item) => (
+          <div key={item.label}>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="font-medium text-slate-600">{item.label}</span>
+              <span className="text-slate-400">{item.value}</span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${tone}`}
+                style={{ width: `${Math.max((item.value / max) * 100, item.value > 0 ? 8 : 0)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+        {data.length === 0 && <p className="text-xs italic text-slate-400">No data yet</p>}
+      </div>
+    </div>
+  );
+}
 
 export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void }) {
-  const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [patients, setPatients] = useState<PatientContext[]>([]);
   const [loading, setLoading] = useState(true);
-  const [agentFilter, setAgentFilter] = useState<string>('');
-  const [opFilter, setOpFilter] = useState<string>('');
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsRes, auditRes] = await Promise.all([
-        fetch('/api/stats'),
-        fetch('/api/audit?limit=200'),
-      ]);
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (auditRes.ok) setAudit(await auditRes.json());
+      const res = await fetch('/api/patients?limit=200');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as PatientContext[];
+      setPatients(Array.isArray(data) ? data : []);
     } catch {
-      // silent
+      setPatients([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
-  // Filtered audit entries
-  const filteredAudit = audit.filter((e) => {
-    if (agentFilter && e.agent_id !== agentFilter) return false;
-    if (opFilter && e.operation !== opFilter) return false;
-    return true;
-  });
-
-  // Unique agents & operations for filter dropdowns
-  const uniqueAgents = [...new Set(audit.map((e) => e.agent_id))].sort();
-  const uniqueOps = [...new Set(audit.map((e) => e.operation))].sort();
-
-  const successRate =
-    stats && stats.audit_events_total > 0
-      ? Math.round((stats.audit_success / stats.audit_events_total) * 100)
-      : 100;
-
-  const agentBarColor = (key: string) => {
-    const map: Record<string, string> = {
-      orchestrator: 'bg-purple-500',
-      patient_historian: 'bg-blue-500',
-      vision_specialist: 'bg-amber-500',
-      clinical_sorter: 'bg-emerald-500',
-      diagnostic_synthesis: 'bg-rose-500',
-    };
-    return map[key] ?? 'bg-slate-400';
-  };
+  const dashboard = useMemo(() => deriveDashboardData(patients), [patients]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
-      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {onBackToGrid && (
@@ -198,183 +336,118 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
             </button>
           )}
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Platform Observability</h2>
-            <p className="text-sm text-slate-400">Audit trail, agent analytics & HIPAA access log</p>
+            <h2 className="text-xl font-bold text-slate-800">Clinical Operations Dashboard</h2>
+            <p className="text-sm text-slate-400">A simple month-to-date view of patient flow, syntheses, and approvals.</p>
           </div>
         </div>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="btn-secondary"
-        >
+
+        <button onClick={refresh} disabled={loading} className="btn-secondary">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total Patients" value={stats?.patients_total ?? '—'} icon={Users} />
-        <StatCard
-          label="Audit Events"
-          value={stats?.audit_events_total ?? '—'}
-          icon={Shield}
-          accent="text-emerald-600 bg-emerald-50"
+      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard label="Total Patients" value={dashboard.totalPatients} icon={Users} accent="bg-brand-50 text-brand-600" />
+        <StatCard label="In Progress" value={dashboard.inProgressCases} icon={Activity} accent="bg-amber-50 text-amber-600" />
+        <StatCard label="Syntheses Complete" value={dashboard.completedSyntheses} icon={FileText} accent="bg-emerald-50 text-emerald-600" />
+        <StatCard label="Approved Episodes" value={dashboard.approvedEpisodes} icon={ShieldCheck} accent="bg-blue-50 text-blue-600" />
+      </div>
+
+      <div className="mb-6 grid gap-4 xl:grid-cols-2">
+        <VerticalBars
+          title="Patients Per Day"
+          subtitle="New patients created this month"
+          data={dashboard.patientsPerDay}
+          tone="bg-brand-500"
         />
-        <StatCard
-          label="A2A Messages"
-          value={stats?.a2a_messages_total ?? '—'}
-          icon={Radio}
-          accent="text-purple-600 bg-purple-50"
-        />
-        <StatCard
-          label="Success Rate"
-          value={`${successRate}%`}
-          icon={CheckCircle}
-          accent={successRate >= 90 ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'}
+        <VerticalBars
+          title="Episodes Per Day"
+          subtitle="New episodes created this month"
+          data={dashboard.episodesPerDay}
+          tone="bg-emerald-500"
         />
       </div>
 
-      {/* Charts row */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        {/* Agent Activity */}
-        <div className="card">
-          <div className="mb-4 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-brand-500" />
-            <h3 className="text-sm font-semibold text-slate-700">Agent Activity (A2A Messages)</h3>
-          </div>
-          <HorizontalBar data={stats?.agent_message_counts ?? {}} colorFn={agentBarColor} />
-        </div>
-
-        {/* Operation Breakdown */}
-        <div className="card">
-          <div className="mb-4 flex items-center gap-2">
-            <FileText className="h-4 w-4 text-brand-500" />
-            <h3 className="text-sm font-semibold text-slate-700">MCP Operations</h3>
-          </div>
-          <HorizontalBar data={stats?.operation_counts ?? {}} />
-        </div>
+      <div className="mb-6 grid gap-4 xl:grid-cols-3">
+        <HorizontalBars
+          title="Case Status Mix"
+          subtitle="Current episode outcomes"
+          data={dashboard.synthesisStatus}
+          tone="bg-blue-500"
+        />
+        <HorizontalBars
+          title="Approvals Per Doctor"
+          subtitle="Signed-off episodes by clinician"
+          data={dashboard.approvalsPerDoctor}
+          tone="bg-rose-500"
+        />
+        <HorizontalBars
+          title="Top Modalities"
+          subtitle="Most common findings across cases"
+          data={dashboard.modalityMix}
+          tone="bg-violet-500"
+        />
       </div>
 
-      {/* Audit Trail Table */}
       <div className="card">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-emerald-500" />
-            <h3 className="text-sm font-semibold text-slate-700">HIPAA Audit Trail</h3>
-            <span className="badge bg-slate-100 text-slate-500">{filteredAudit.length} entries</span>
-          </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-3.5 w-3.5 text-slate-400" />
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              title="Filter by agent"
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-200"
-            >
-              <option value="">All Agents</option>
-              {uniqueAgents.map((a) => (
-                <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-            <select
-              value={opFilter}
-              onChange={(e) => setOpFilter(e.target.value)}
-              title="Filter by operation"
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-200"
-            >
-              <option value="">All Operations</option>
-              {uniqueOps.map((o) => (
-                <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
+        <div className="mb-4 flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-brand-500" />
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Recent Clinical Activity</h3>
+            <p className="text-xs text-slate-400">Latest workflow and sign-off events across the clinic</p>
           </div>
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left">
-                <th className="pb-2 pr-3 font-semibold text-slate-400 uppercase tracking-wider">Time</th>
-                <th className="pb-2 pr-3 font-semibold text-slate-400 uppercase tracking-wider">Agent</th>
-                <th className="pb-2 pr-3 font-semibold text-slate-400 uppercase tracking-wider">Operation</th>
-                <th className="pb-2 pr-3 font-semibold text-slate-400 uppercase tracking-wider">Patient</th>
-                <th className="pb-2 pr-3 font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="pb-2 font-semibold text-slate-400 uppercase tracking-wider"></th>
+              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
+                <th className="pb-3 pr-3 font-semibold">Time</th>
+                <th className="pb-3 pr-3 font-semibold">Patient</th>
+                <th className="pb-3 pr-3 font-semibold">Episode</th>
+                <th className="pb-3 pr-3 font-semibold">Action</th>
+                <th className="pb-3 font-semibold">Detail</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAudit.map((entry, i) => (
-                <>
-                  <tr
-                    key={i}
-                    className={`border-b border-slate-50 transition hover:bg-slate-50 cursor-pointer ${
-                      !entry.success ? 'bg-red-50/40' : ''
-                    }`}
-                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                  >
-                    <td className="py-2 pr-3 whitespace-nowrap text-slate-500">
-                      <div>{formatTime(entry.timestamp)}</div>
-                      <div className="text-[10px] text-slate-300">{formatDate(entry.timestamp)}</div>
-                    </td>
-                    <td className="py-2 pr-3">{agentBadge(entry.agent_id)}</td>
-                    <td className="py-2 pr-3 font-mono text-slate-600">{entry.operation}</td>
-                    <td className="py-2 pr-3 text-slate-600">{entry.patient_id || '—'}</td>
-                    <td className="py-2 pr-3">
-                      {entry.success ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : (
-                        <XCircle className="h-3.5 w-3.5 text-red-500" />
-                      )}
-                    </td>
-                    <td className="py-2">
-                      {expandedRow === i ? (
-                        <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                      )}
-                    </td>
-                  </tr>
-                  {expandedRow === i && (
-                    <tr key={`${i}-detail`} className="bg-slate-50/70">
-                      <td colSpan={6} className="px-4 py-3">
-                        <div className="space-y-1 text-[11px]">
-                          <div>
-                            <span className="font-semibold text-slate-500">Result: </span>
-                            <span className="text-slate-600">{entry.result_summary}</span>
-                          </div>
-                          {Object.keys(entry.params).length > 0 && (
-                            <div>
-                              <span className="font-semibold text-slate-500">Params: </span>
-                              <code className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
-                                {JSON.stringify(entry.params)}
-                              </code>
-                            </div>
-                          )}
-                          <div>
-                            <span className="font-semibold text-slate-500">Timestamp: </span>
-                            <span className="text-slate-600">{entry.timestamp}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </>
+              {dashboard.recentActivity.map((item, index) => (
+                <tr key={`${item.timestamp}-${item.patientId}-${index}`} className="border-b border-slate-50">
+                  <td className="py-3 pr-3 whitespace-nowrap text-xs text-slate-500">
+                    {new Date(item.timestamp).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="py-3 pr-3 text-sm font-medium text-slate-700">{item.patientId}</td>
+                  <td className="py-3 pr-3 text-sm text-slate-600">{item.episodeLabel}</td>
+                  <td className="py-3 pr-3">
+                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                      {humanizeLabel(item.action)}
+                    </span>
+                  </td>
+                  <td className="py-3 text-sm text-slate-600">{item.detail || 'No detail available'}</td>
+                </tr>
               ))}
-              {filteredAudit.length === 0 && (
+              {dashboard.recentActivity.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    <Clock className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-                    {audit.length === 0 ? 'No audit events yet — run a patient pipeline to generate data' : 'No entries match current filters'}
+                  <td colSpan={5} className="py-12 text-center">
+                    <CalendarDays className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">No clinic activity yet</p>
+                    <p className="text-xs text-slate-400">Run a patient workflow and refresh this page.</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+        <BarChart3 className="h-3.5 w-3.5" />
+        This dashboard is derived directly from patient and episode records already stored in MedNexus.
       </div>
     </div>
   );

@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { A2AMessage } from '../types';
 
+type WorkflowEventName =
+  | 'specialist_started'
+  | 'specialist_completed'
+  | 'synthesis_started'
+  | 'synthesis_completed';
+
+interface WorkflowEventPayload {
+  patient_id?: string;
+  episode_id?: string;
+  agent?: string;
+  task_id?: string;
+  summary?: string;
+}
+
 /** Tiny debounce helper — collapses rapid-fire calls into one. */
 function useDebouncedCallback(fn: () => void, delay: number) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -24,6 +38,73 @@ function dedup(prev: A2AMessage[], incoming: A2AMessage[]): A2AMessage[] {
   }
   // Keep last 200
   return merged.slice(-200);
+}
+
+function toWorkflowMessage(eventName: WorkflowEventName, data: WorkflowEventPayload): A2AMessage {
+  const timestamp = new Date().toISOString();
+  const patientId = data.patient_id ?? '';
+  const episodeId = data.episode_id ?? '';
+  const agent = data.agent ?? 'diagnostic_synthesis';
+  const taskId = data.task_id ?? '';
+
+  const base = {
+    message_id: `workflow:${eventName}:${patientId}:${episodeId}:${taskId || timestamp}`,
+    patient_id: patientId,
+    timestamp,
+    correlation_id: taskId || `${eventName}:${episodeId}:${timestamp}`,
+  };
+
+  if (eventName === 'specialist_started') {
+    return {
+      ...base,
+      type: 'task_assign',
+      sender: 'orchestrator',
+      receiver: agent,
+      payload: {
+        detail: `Started ${agent.replace(/_/g, ' ')} for ${episodeId || patientId}`,
+        episode_id: episodeId,
+        task_id: taskId,
+      },
+    };
+  }
+
+  if (eventName === 'specialist_completed') {
+    return {
+      ...base,
+      type: 'task_result',
+      sender: agent,
+      receiver: 'orchestrator',
+      payload: {
+        summary: data.summary || `${agent.replace(/_/g, ' ')} completed`,
+        episode_id: episodeId,
+        task_id: taskId,
+      },
+    };
+  }
+
+  if (eventName === 'synthesis_started') {
+    return {
+      ...base,
+      type: 'task_assign',
+      sender: 'orchestrator',
+      receiver: 'diagnostic_synthesis',
+      payload: {
+        detail: `Started synthesis for ${episodeId || patientId}`,
+        episode_id: episodeId,
+      },
+    };
+  }
+
+  return {
+    ...base,
+    type: 'task_result',
+    sender: 'diagnostic_synthesis',
+    receiver: 'orchestrator',
+    payload: {
+      summary: data.summary || `Synthesis completed for ${episodeId || patientId}`,
+      episode_id: episodeId,
+    },
+  };
 }
 
 /**
@@ -81,6 +162,18 @@ export function useWebSocket(onContextChange?: () => void) {
         if (parsed.event === 'a2a_message' && parsed.data) {
           const msg = parsed.data as A2AMessage;
           setMessages((prev) => dedup(prev, [msg]));
+          return;
+        }
+
+        if (
+          (parsed.event === 'specialist_started' ||
+            parsed.event === 'specialist_completed' ||
+            parsed.event === 'synthesis_started' ||
+            parsed.event === 'synthesis_completed') &&
+          parsed.data
+        ) {
+          const synthetic = toWorkflowMessage(parsed.event as WorkflowEventName, parsed.data as WorkflowEventPayload);
+          setMessages((prev) => dedup(prev, [synthetic]));
         }
       } catch {
         // ignore non-JSON messages

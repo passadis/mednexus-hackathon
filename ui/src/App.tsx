@@ -6,6 +6,7 @@ import { ChatPanel } from './components/ChatPanel';
 import { PatientGrid } from './components/PatientGrid';
 import { PatientPortal } from './components/PatientPortal';
 import { ObservabilityPage } from './components/ObservabilityPage';
+import { ClinicalNavigatorPage } from './components/ClinicalNavigatorPage';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePatientContext } from './hooks/usePatientContext';
 
@@ -22,7 +23,7 @@ export function App() {
   return <DoctorApp />;
 }
 
-type View = 'grid' | 'patient' | 'observability';
+type View = 'grid' | 'patient' | 'observability' | 'navigator';
 
 function DoctorApp() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
@@ -104,12 +105,18 @@ function DoctorApp() {
         onActivateEpisode={handleActivateEpisode}
         currentView={view}
         onNavigateObservability={() => { setSelectedPatientId(''); setView('observability'); }}
+        onNavigateNavigator={() => { setSelectedPatientId(''); setView('navigator'); }}
       />
 
       {/* Main content: Grid (home) or Workspace (patient detail) */}
       <main className="flex flex-1 overflow-hidden">
         {view === 'observability' ? (
           <ObservabilityPage onBackToGrid={handleBackToGrid} />
+        ) : view === 'navigator' ? (
+          <ClinicalNavigatorPage
+            onBackToGrid={handleBackToGrid}
+            onNavigatePatient={handleSelectPatient}
+          />
         ) : view === 'patient' && selectedPatientId ? (
           <ClinicalWorkspace
             context={context}

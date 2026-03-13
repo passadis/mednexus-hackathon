@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home, Paperclip, Shield } from 'lucide-react';
+import { Search, Stethoscope, Activity, Layers, Plus, Circle, Home, Paperclip, Shield, Compass } from 'lucide-react';
 import type { Episode } from '../types';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ interface SidebarProps {
   onActivateEpisode?: (episodeId: string) => void;
   currentView?: string;
   onNavigateObservability?: () => void;
+  onNavigateNavigator?: () => void;
 }
 
 export function Sidebar({
@@ -24,6 +25,7 @@ export function Sidebar({
   onActivateEpisode,
   currentView,
   onNavigateObservability,
+  onNavigateNavigator,
 }: SidebarProps) {
   const [searchInput, setSearchInput] = useState('');
 
@@ -161,6 +163,19 @@ export function Sidebar({
 
       {/* Observability + Status */}
       <div className="mt-auto border-t border-slate-100 p-4 space-y-3">
+        {onNavigateNavigator && (
+          <button
+            type="button"
+            onClick={onNavigateNavigator}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+              currentView === 'navigator'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Compass className="h-4 w-4" /> Clinical Navigator
+          </button>
+        )}
         {onNavigateObservability && (
           <button
             type="button"

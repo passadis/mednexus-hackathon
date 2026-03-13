@@ -40,6 +40,7 @@ Folder: `data/samples/sample-02/`
 4. Watch the **Agent Stepper** on each episode card to follow the pipeline: Intake → Specialist → Cross-Check → Synthesis.
 5. Watch the **Agent Chatter** pane to see each agent's reasoning in real time.
 6. After all agents finish, the **Diagnostic Synthesis Report** appears automatically.
+7. If a patient view does not immediately reflect the latest status, refresh the browser once. The backend state is preserved and the page will resync.
 
 ![alt text](data/samples/scr-uploads-helper.png)
 

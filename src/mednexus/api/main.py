@@ -750,12 +750,66 @@ async def save_my_story(patient_id: str, body: _MyStoryRequest) -> dict[str, Any
 # ── Observability: Audit Trail & Platform Stats ──────────────
 
 
+def _workflow_activity_success(action: str) -> bool:
+    return action not in {"result_failed", "synthesis_failed"}
+
+
+def _workflow_audit_entries(contexts: list[ClinicalContext], limit: int) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+
+    for ctx in contexts:
+        episodes = ctx.episodes or []
+        if episodes:
+            for ep in episodes:
+                for activity in ep.activity_log:
+                    entries.append(
+                        {
+                            "timestamp": activity.timestamp.isoformat(),
+                            "operation": activity.action,
+                            "agent_id": activity.agent,
+                            "patient_id": ctx.patient.patient_id,
+                            "params": {
+                                "episode_id": ep.episode_id,
+                                "episode_label": ep.label,
+                                "status": ep.status.value,
+                            },
+                            "result_summary": activity.detail,
+                            "success": _workflow_activity_success(activity.action),
+                        }
+                    )
+        else:
+            for activity in ctx.activity_log:
+                entries.append(
+                    {
+                        "timestamp": activity.timestamp.isoformat(),
+                        "operation": activity.action,
+                        "agent_id": activity.agent,
+                        "patient_id": ctx.patient.patient_id,
+                        "params": {
+                            "status": ctx.status.value,
+                        },
+                        "result_summary": activity.detail,
+                        "success": _workflow_activity_success(activity.action),
+                    }
+                )
+
+    entries.sort(key=lambda entry: entry["timestamp"], reverse=True)
+    return entries[:limit]
+
+
 @app.get("/api/audit")
 async def audit_trail(limit: int = Query(default=100, le=500)) -> list[dict[str, Any]]:
-    """Return recent MCP audit entries (HIPAA-compliant access log)."""
+    """Return recent audit entries from MCP plus current workflow activity."""
     from mednexus.mcp.audit import get_audit_logger
 
-    return get_audit_logger().get_recent(limit)
+    cosmos = get_cosmos_manager()
+    contexts = await cosmos.list_contexts(limit=300)
+    combined = [
+        *get_audit_logger().get_recent(limit),
+        *_workflow_audit_entries(contexts, limit),
+    ]
+    combined.sort(key=lambda entry: entry.get("timestamp", ""), reverse=True)
+    return combined[:limit]
 
 
 @app.get("/api/stats")
@@ -766,28 +820,28 @@ async def platform_stats() -> dict[str, Any]:
     cosmos = get_cosmos_manager()
     bus = get_a2a_bus()
 
-    # Patient count from Cosmos
-    patients: list[dict[str, Any]] = []
-    try:
-        container = await cosmos._ensure_container()
-        patients = [
-            doc async for doc in container.query_items(
-                query="SELECT c.id, c.patient_id, c.status FROM c",
-                enable_cross_partition_query=True,
-            )
-        ]
-    except Exception:
-        pass
+    contexts = await cosmos.list_contexts(limit=300)
+    patients_total = len(contexts)
 
-    # Audit entries
-    audit_entries = get_audit_logger().get_recent(500)
+    # Audit entries: legacy MCP + current workflow activity
+    audit_entries = [
+        *get_audit_logger().get_recent(500),
+        *_workflow_audit_entries(contexts, 500),
+    ]
+    audit_entries.sort(key=lambda entry: entry.get("timestamp", ""), reverse=True)
+    audit_entries = audit_entries[:500]
 
-    # Agent message counts
+    # Agent / workflow event counts
     recent_messages = bus.get_recent_messages(200)
     agent_msg_counts: dict[str, int] = {}
     for msg in recent_messages:
         sender = msg.get("sender", "unknown")
         agent_msg_counts[sender] = agent_msg_counts.get(sender, 0) + 1
+
+    if not agent_msg_counts:
+        for entry in audit_entries:
+            agent = entry.get("agent_id", "unknown")
+            agent_msg_counts[agent] = agent_msg_counts.get(agent, 0) + 1
 
     # Audit breakdown by agent
     agent_audit_counts: dict[str, int] = {}
@@ -805,7 +859,7 @@ async def platform_stats() -> dict[str, Any]:
             failure_count += 1
 
     return {
-        "patients_total": len(patients),
+        "patients_total": patients_total,
         "audit_events_total": len(audit_entries),
         "a2a_messages_total": len(recent_messages),
         "agent_message_counts": agent_msg_counts,
@@ -831,4 +885,14 @@ async def doctor_chat(body: _ChatRequest) -> dict[str, Any]:
 
     msgs = [{"role": m.role, "content": m.content} for m in body.messages]
     result = await handle_doctor_chat(msgs)
+    return result
+
+
+@app.post("/api/navigator/chat")
+async def clinical_navigator_chat(body: _ChatRequest) -> dict[str, Any]:
+    """Read-only staff assistant for cross-case retrieval and navigation."""
+    from mednexus.api.navigator_endpoint import handle_clinical_navigator_chat
+
+    msgs = [{"role": m.role, "content": m.content} for m in body.messages]
+    result = await handle_clinical_navigator_chat(msgs)
     return result

@@ -74,11 +74,14 @@ async def generate_embedding(text: str) -> list[float]:
             timeout=30.0,
             max_retries=1,
         )
-    response = await client.embeddings.create(
-        input=text,
-        model=settings.azure_openai_embedding_deployment,
-    )
-    return response.data[0].embedding
+    try:
+        response = await client.embeddings.create(
+            input=text,
+            model=settings.azure_openai_embedding_deployment,
+        )
+        return response.data[0].embedding
+    finally:
+        await client.close()
 
 
 # ── Search functions ─────────────────────────────────────────
@@ -137,7 +140,7 @@ async def search_documents(
                 kwargs["vector_queries"] = [
                     VectorizedQuery(
                         vector=query_embedding,
-                        k_nearest_neighbors=top,
+                        k=top,
                         fields="content_vector",
                     ),
                 ]

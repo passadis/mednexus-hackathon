@@ -3,11 +3,11 @@ import type { PatientContext } from '../types';
 
 /** Status values that indicate agents are still processing. */
 const PROCESSING_STATUSES = new Set([
-  'INTAKE',
-  'WAITING_FOR_RADIOLOGY',
-  'WAITING_FOR_HISTORY',
-  'WAITING_FOR_TRANSCRIPT',
-  'CROSS_MODALITY_CHECK',
+  'intake',
+  'waiting_for_radiology',
+  'waiting_for_history',
+  'waiting_for_transcript',
+  'cross_modality_check',
 ]);
 
 /**
@@ -77,7 +77,8 @@ export function usePatientContext(patientId: string) {
   const activeEpStatus = context?.episodes?.find(
     (e) => e.episode_id === context.active_episode_id,
   )?.status;
-  const isProcessing = activeEpStatus ? PROCESSING_STATUSES.has(activeEpStatus) : false;
+  const normalizedStatus = activeEpStatus?.toLowerCase();
+  const isProcessing = normalizedStatus ? PROCESSING_STATUSES.has(normalizedStatus) : false;
 
   useEffect(() => {
     if (!isProcessing) return;
