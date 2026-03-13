@@ -4,13 +4,15 @@
 # ── Azure SDK ────────────────────────────────────────────
 azure-identity>=1.17
 azure-cosmos>=4.7
+azure-keyvault-secrets>=4.9
 azure-search-documents>=11.6
 azure-ai-inference
 azure-storage-blob>=12.20
 
 
 # ── AI / LLM ─────────────────────────────────────────────
-openai>=1.40
+openai>=1.99
+agent-framework>=1.0.0rc4
 semantic-kernel>=1.5
 
 # ── Web / API ────────────────────────────────────────────

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: mednexus-awesome-azd
+metadata:
+  template: mednexus-awesome-azd-terraform@1.0.0
+  description: MedNexus multi-agent healthcare template for Azure Developer CLI with Terraform, Container Apps, Azure OpenAI, Cosmos DB, AI Search, and Blob Storage.
+  author: Konstantinos Passadis
+  repositoryPath: .
+  quickstart: true
+infra:
+  provider: terraform
+services:
+  backend:
+    project: .
+    host: containerapp
+    language: docker
+    docker:
+      path: Dockerfile.backend
+      context: .
+      remoteBuild: true
+  frontend:
+    project: .
+    host: containerapp
+    language: docker
+    docker:
+      path: Dockerfile.frontend
+      context: .
+      remoteBuild: true
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: echo "Preparing MedNexus azd template deployment..."
+    windows:
+      shell: pwsh
+      run: Write-Host "Preparing MedNexus azd template deployment..." -ForegroundColor Green
+  postprovision:
+    posix:
+      shell: sh
+      run: echo "Infrastructure provisioned. Bootstrapping Azure AI Search index..." && sh scripts/bootstrap_search_index.sh
+    windows:
+      shell: pwsh
+      run: Write-Host "Infrastructure provisioned. Bootstrapping Azure AI Search index..." -ForegroundColor Green; ./scripts/bootstrap_search_index.ps1
+  postdeploy:
+    posix:
+      shell: sh
+      run: echo "MedNexus deployed successfully."
+    windows:
+      shell: pwsh
+      run: Write-Host "MedNexus deployed successfully." -ForegroundColor Green

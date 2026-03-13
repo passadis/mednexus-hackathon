@@ -26,10 +26,17 @@ from mednexus.agents.patient_historian import PatientHistorianAgent
 from mednexus.agents.vision_specialist import VisionSpecialistAgent
 from mednexus.api.portal_endpoints import router as portal_router
 from mednexus.config import settings
+from mednexus.framework.orchestrator_workflow import OrchestratorWorkflowRuntime
 from mednexus.models.clinical_context import ClinicalContext
+from mednexus.observability import configure_observability
 from mednexus.services.cosmos_client import get_cosmos_manager
+from mednexus.services.key_vault import load_key_vault_overrides
+from mednexus.services.search_index import ensure_search_index
 
 logger = structlog.get_logger()
+
+load_key_vault_overrides()
+configure_observability()
 
 
 # ── Lifespan ─────────────────────────────────────────────────
@@ -38,6 +45,10 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ANN201
     """Startup: register all agents on the A2A bus.  Shutdown: cleanup."""
+    try:
+        await ensure_search_index()
+    except Exception:
+        logger.warning("search_index_bootstrap_skipped", exc_info=True)
     bus = get_a2a_bus()
 
     # Create and register all agents
@@ -56,7 +67,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
         tasks.append(asyncio.create_task(agent.start()))
 
     # Store refs for route handlers
-    app.state.orchestrator = orchestrator
+    app.state.orchestrator = OrchestratorWorkflowRuntime()
     app.state.bus = bus
 
     logger.info("mednexus_started", agents=bus.registered_agents)
@@ -438,7 +449,7 @@ async def upload_file(
         ctx = await cosmos.create_context(patient_id)
 
     # Dispatch to orchestrator (episode-aware)
-    orchestrator: OrchestratorAgent = app.state.orchestrator
+    orchestrator: Any = app.state.orchestrator
     task_id = await orchestrator.ingest_file(med_file, ctx, episode_id=episode_id)
 
     # Save directly — ingest_file modified ctx in-memory (created episode,

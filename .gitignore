@@ -5,6 +5,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.terraform/
 dist/
 *.egg-info/
 node_modules/
@@ -22,5 +23,4 @@ venv/
 node_modules/
 src/mednexus/functions
 /host.json
-
 

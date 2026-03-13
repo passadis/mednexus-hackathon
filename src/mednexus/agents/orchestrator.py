@@ -16,6 +16,7 @@ Design:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -42,6 +43,7 @@ class OrchestratorAgent(BaseAgent):
         super().__init__()
         self._pending_tasks: dict[str, str] = {}   # task_id → episode_id
         self._synthesis_sent: set[str] = set()      # episode_ids already dispatched
+        self._framework_tasks: set[asyncio.Task[None]] = set()
         self.log = structlog.get_logger().bind(agent=self.agent_id, role="orchestrator")
 
     # ── File routing ─────────────────────────────────────────
@@ -109,26 +111,44 @@ class OrchestratorAgent(BaseAgent):
             detail=f"[{ep.label}] Dispatched {file.filename} → {target_role.value} (task {task.task_id})",
         )
 
-        # Send A2A message
         correlation = uuid.uuid4().hex
-        await self.send(
-            A2AMessage(
-                type=MessageType.TASK_ASSIGN,
-                sender=self.role,
-                receiver=target_role,
-                patient_id=ctx.patient.patient_id,
-                payload=task.model_dump(mode="json"),
-                correlation_id=correlation,
-            )
-        )
-
         self._pending_tasks[task.task_id] = ep.episode_id
+
+        if target_role == AgentRole.PATIENT_HISTORIAN:
+            workflow_task = asyncio.create_task(
+                self._run_historian_via_framework(task, ctx.patient.patient_id, correlation)
+            )
+            self._framework_tasks.add(workflow_task)
+            workflow_task.add_done_callback(self._framework_tasks.discard)
+        elif target_role == AgentRole.VISION_SPECIALIST:
+            workflow_task = asyncio.create_task(
+                self._run_vision_via_framework(task, ctx.patient.patient_id, correlation)
+            )
+            self._framework_tasks.add(workflow_task)
+            workflow_task.add_done_callback(self._framework_tasks.discard)
+        else:
+            await self.send(
+                A2AMessage(
+                    type=MessageType.TASK_ASSIGN,
+                    sender=self.role,
+                    receiver=target_role,
+                    patient_id=ctx.patient.patient_id,
+                    payload=task.model_dump(mode="json"),
+                    correlation_id=correlation,
+                )
+            )
+
         self.log.info(
             "file_dispatched",
             task_id=task.task_id,
             target=target_role.value,
             file=file.filename,
             episode=ep.episode_id,
+            runtime=(
+                "microsoft_agent_framework"
+                if target_role in {AgentRole.PATIENT_HISTORIAN, AgentRole.VISION_SPECIALIST}
+                else "mednexus_a2a"
+            ),
         )
         return task.task_id
 
@@ -303,6 +323,102 @@ class OrchestratorAgent(BaseAgent):
             summary="Orchestrator acknowledged.",
         )
 
+    async def _run_historian_via_framework(
+        self,
+        task: TaskAssignment,
+        patient_id: str,
+        correlation_id: str,
+    ) -> None:
+        """Execute the historian path through Agent Framework and route the result back."""
+        from mednexus.framework.historian_workflow import run_historian_workflow
+
+        try:
+            result = await run_historian_workflow(task)
+        except Exception as exc:
+            self.log.error("historian_framework_error", patient=patient_id, task_id=task.task_id, error=str(exc))
+            result = TaskResult(
+                task_id=task.task_id,
+                patient_id=patient_id,
+                agent=AgentRole.PATIENT_HISTORIAN,
+                success=False,
+                error_detail=str(exc),
+            )
+
+        await self.send(
+            A2AMessage(
+                type=MessageType.TASK_RESULT,
+                sender=AgentRole.PATIENT_HISTORIAN,
+                receiver=AgentRole.ORCHESTRATOR,
+                patient_id=patient_id,
+                payload=result.model_dump(mode="json"),
+                correlation_id=correlation_id,
+            )
+        )
+
+    async def _run_vision_via_framework(
+        self,
+        task: TaskAssignment,
+        patient_id: str,
+        correlation_id: str,
+    ) -> None:
+        """Execute the vision path through Agent Framework and route the result back."""
+        from mednexus.framework.vision_workflow import run_vision_workflow
+
+        try:
+            result = await run_vision_workflow(task)
+        except Exception as exc:
+            self.log.error("vision_framework_error", patient=patient_id, task_id=task.task_id, error=str(exc))
+            result = TaskResult(
+                task_id=task.task_id,
+                patient_id=patient_id,
+                agent=AgentRole.VISION_SPECIALIST,
+                success=False,
+                error_detail=str(exc),
+            )
+
+        await self.send(
+            A2AMessage(
+                type=MessageType.TASK_RESULT,
+                sender=AgentRole.VISION_SPECIALIST,
+                receiver=AgentRole.ORCHESTRATOR,
+                patient_id=patient_id,
+                payload=result.model_dump(mode="json"),
+                correlation_id=correlation_id,
+            )
+        )
+
+    async def _run_synthesis_via_framework(
+        self,
+        task: TaskAssignment,
+        patient_id: str,
+        correlation_id: str,
+    ) -> None:
+        """Execute the synthesis path through Agent Framework and route the result back."""
+        from mednexus.framework.synthesis_workflow import run_synthesis_workflow
+
+        try:
+            result = await run_synthesis_workflow(task)
+        except Exception as exc:
+            self.log.error("synthesis_framework_error", patient=patient_id, task_id=task.task_id, error=str(exc))
+            result = TaskResult(
+                task_id=task.task_id,
+                patient_id=patient_id,
+                agent=AgentRole.DIAGNOSTIC_SYNTHESIS,
+                success=False,
+                error_detail=str(exc),
+            )
+
+        await self.send(
+            A2AMessage(
+                type=MessageType.TASK_RESULT,
+                sender=AgentRole.DIAGNOSTIC_SYNTHESIS,
+                receiver=AgentRole.ORCHESTRATOR,
+                patient_id=patient_id,
+                payload=result.model_dump(mode="json"),
+                correlation_id=correlation_id,
+            )
+        )
+
     # ── Private helpers ──────────────────────────────────────
 
     @staticmethod
@@ -395,6 +511,8 @@ class OrchestratorAgent(BaseAgent):
         The context_snapshot only includes the active episode's findings
         so the synthesis is scoped to this incident.
         """
+        modalities_present = sorted({f.modality.value for f in ep.findings})
+
         # Build a lightweight context with only this episode's findings
         scoped = ctx.model_copy(deep=True)
         scoped.findings = list(ep.findings)
@@ -405,26 +523,31 @@ class OrchestratorAgent(BaseAgent):
             instructions=(
                 f"You are the Diagnostic Synthesis Agent. You are synthesising "
                 f"findings for **{ep.label}** (episode {ep.episode_id}).\n\n"
-                f"Perform a Cross-Modality Check:\n"
-                "1. Compare the patient's verbal statements in the audio transcript "
-                "   with the clinical findings in the X-ray. Are there discrepancies?\n"
-                "2. Cross-reference lab values with imaging findings.\n"
-                "3. Produce a unified Synthesis Report with recommendations.\n\n"
-                "Be precise. Flag any inconsistencies with severity ratings."
+                f"Available modalities in this episode: {', '.join(modalities_present) if modalities_present else 'none'}.\n\n"
+                "Grounding rules:\n"
+                "1. Use only the findings present in this episode.\n"
+                "2. Do not invent patient symptoms, verbal statements, labs, or transcripts that are not present.\n"
+                "3. If only one modality is present, produce a unimodal synthesis and state that cross-modality comparison is limited by available data.\n"
+                "4. Only report discrepancies when they are supported by the findings provided.\n\n"
+                "Produce a unified Synthesis Report with recommendations.\n"
+                "Be precise. Flag supported inconsistencies with severity ratings."
             ),
             context_snapshot=scoped.model_dump(mode="json"),
         )
-        await self.send(
-            A2AMessage(
-                type=MessageType.TASK_ASSIGN,
-                sender=self.role,
-                receiver=AgentRole.DIAGNOSTIC_SYNTHESIS,
-                patient_id=ctx.patient.patient_id,
-                payload=task.model_dump(mode="json"),
-                correlation_id=uuid.uuid4().hex,
-            )
+        correlation = uuid.uuid4().hex
+        self._pending_tasks[task.task_id] = ep.episode_id
+        workflow_task = asyncio.create_task(
+            self._run_synthesis_via_framework(task, ctx.patient.patient_id, correlation)
         )
-        self.log.info("synthesis_dispatched", patient=ctx.patient.patient_id, episode=ep.episode_id)
+        self._framework_tasks.add(workflow_task)
+        workflow_task.add_done_callback(self._framework_tasks.discard)
+        self.log.info(
+            "synthesis_dispatched",
+            patient=ctx.patient.patient_id,
+            episode=ep.episode_id,
+            task_id=task.task_id,
+            runtime="microsoft_agent_framework",
+        )
 
     async def _maybe_trigger_cross_episode(self, ctx: ClinicalContext) -> None:
         """Generate cross-episode intelligence once 2+ episodes have synthesis."""

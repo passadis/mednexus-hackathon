@@ -17,11 +17,11 @@ from typing import Any
 import jwt
 import structlog
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
-from openai import AsyncAzureOpenAI
 from pydantic import BaseModel as _PydBaseModel
 
 from mednexus.config import settings
 from mednexus.services.cosmos_client import get_cosmos_manager
+from mednexus.services.llm_client import create_openai_client
 
 logger = structlog.get_logger()
 
@@ -75,35 +75,34 @@ async def _rewrite_for_patient(synthesis_summary: str, findings_text: str) -> st
     if not synthesis_summary:
         return "No clinical summary is available for this visit yet."
 
-    client = AsyncAzureOpenAI(
-        azure_endpoint=settings.azure_openai_endpoint,
-        api_key=settings.azure_openai_api_key,
-        api_version=settings.azure_openai_api_version,
-    )
-    resp = await client.chat.completions.create(
-        model=settings.azure_openai_deployment,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a compassionate medical communicator. Rewrite the following "
-                    "clinical synthesis in plain, friendly language that a patient with no "
-                    "medical background can understand. Use short sentences. Avoid jargon — "
-                    "if you must use a medical term, define it in parentheses. Keep it concise "
-                    "(3-5 paragraphs). Start with a warm greeting like 'Here is a summary of "
-                    "your recent visit'. End with a gentle reminder to discuss any questions "
-                    "with their doctor."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Clinical Synthesis:\n{synthesis_summary}\n\nFindings:\n{findings_text}",
-            },
-        ],
-        temperature=0.4,
-        max_tokens=800,
-    )
-    return resp.choices[0].message.content or synthesis_summary
+    client = create_openai_client()
+    try:
+        resp = await client.chat.completions.create(
+            model=settings.azure_openai_deployment,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a compassionate medical communicator. Rewrite the following "
+                        "clinical synthesis in plain, friendly language that a patient with no "
+                        "medical background can understand. Use short sentences. Avoid jargon — "
+                        "if you must use a medical term, define it in parentheses. Keep it concise "
+                        "(3-5 paragraphs). Start with a warm greeting like 'Here is a summary of "
+                        "your recent visit'. End with a gentle reminder to discuss any questions "
+                        "with their doctor."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Clinical Synthesis:\n{synthesis_summary}\n\nFindings:\n{findings_text}",
+                },
+            ],
+            temperature=0.4,
+            max_tokens=800,
+        )
+        return resp.choices[0].message.content or synthesis_summary
+    finally:
+        await client.close()
 
 
 # ── Request Models ───────────────────────────────────────────
@@ -208,19 +207,18 @@ async def portal_chat(body: _PortalChatRequest, token: str = Query(...)) -> dict
         if m.role in ("user", "assistant"):
             messages.append({"role": m.role, "content": m.content})
 
-    client = AsyncAzureOpenAI(
-        azure_endpoint=settings.azure_openai_endpoint,
-        api_key=settings.azure_openai_api_key,
-        api_version=settings.azure_openai_api_version,
-    )
-    resp = await client.chat.completions.create(
-        model=settings.azure_openai_deployment,
-        messages=messages,
-        temperature=0.5,
-        max_tokens=500,
-    )
-    reply = resp.choices[0].message.content or ""
-    return {"role": "assistant", "content": reply}
+    client = create_openai_client()
+    try:
+        resp = await client.chat.completions.create(
+            model=settings.azure_openai_deployment,
+            messages=messages,
+            temperature=0.5,
+            max_tokens=500,
+        )
+        reply = resp.choices[0].message.content or ""
+        return {"role": "assistant", "content": reply}
+    finally:
+        await client.close()
 
 
 # ── Voice WebSocket Proxy (Azure OpenAI Realtime) ───────────

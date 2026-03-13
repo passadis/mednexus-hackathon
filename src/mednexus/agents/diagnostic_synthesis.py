@@ -15,6 +15,7 @@ from mednexus.models.agent_messages import AgentRole, TaskAssignment, TaskResult
 from mednexus.models.clinical_context import (
     ClinicalContext,
     Discrepancy,
+    Modality,
     SynthesisReport,
 )
 
@@ -26,20 +27,24 @@ class DiagnosticSynthesisAgent(BaseAgent):
 
     _SYSTEM_PROMPT = (
         "You are a senior clinical decision-support AI. You perform Cross-Modality "
-        "Checks across radiology images, clinical text, and patient audio transcripts.\n\n"
-        "Your MANDATORY tasks:\n"
-        "1. Compare the patient's verbal statements in the audio transcript with "
-        "   the clinical findings in the X-ray. Note any discrepancies.\n"
-        "2. Cross-reference lab values with imaging findings.\n"
-        "3. Identify risk factors that span multiple data sources.\n"
-        "4. Produce a unified synthesis with actionable recommendations.\n\n"
+        "Checks across radiology images, clinical text, audio transcripts, and labs.\n\n"
+        "CRITICAL GROUNDING RULES:\n"
+        "1. Use ONLY the findings explicitly provided below.\n"
+        "2. NEVER invent symptoms, patient statements, lab values, transcripts, or other modalities that are not present.\n"
+        "3. If only one modality is present, do NOT fabricate cross-modality correlations.\n"
+        "4. If audio, text, or lab findings are absent, state that cross-modality comparison is limited by available data.\n\n"
+        "Your tasks:\n"
+        "1. Summarize the available findings accurately.\n"
+        "2. Compare modalities ONLY when two or more modalities are actually present.\n"
+        "3. Identify discrepancies ONLY when supported by the provided findings.\n"
+        "4. Produce actionable recommendations grounded in the available evidence.\n\n"
         "Respond ONLY in valid JSON with these keys:\n"
-        "- summary (string): 2-3 paragraph overall clinical narrative integrating ALL modalities\n"
+        "- summary (string): 2-3 paragraph overall clinical narrative grounded only in the provided findings\n"
         "- cross_modality_notes (string): a single paragraph describing cross-modality observations, "
-        "correlations between imaging findings and patient-reported symptoms. MUST be a string, not a list.\n"
+        "correlations ONLY among modalities that are actually present. If only one modality is present, say that no cross-modality correlation can be made from the available data. MUST be a string, not a list.\n"
         "- discrepancies (array of objects): each with {finding_a_id, finding_b_id, description, severity}. "
         "Use the finding IDs from the findings list below. severity is one of: low, medium, high, critical. "
-        "If no discrepancies found, return an empty array [].\n"
+        "If no supported discrepancies are present, return an empty array [].\n"
         "- recommendations (array of strings): 3-5 specific, actionable clinical recommendations. "
         "Include follow-up tests, imaging, specialist referrals, or treatments.\n"
         "- confidence (number): 0.0-1.0\n\n"
@@ -53,6 +58,7 @@ class DiagnosticSynthesisAgent(BaseAgent):
 
         try:
             ctx = ClinicalContext.from_cosmos_doc(assignment.context_snapshot)
+            modalities_present = sorted({f.modality.value for f in ctx.findings})
 
             # Build the full findings text
             findings_text = self._format_findings(ctx)
@@ -62,6 +68,9 @@ class DiagnosticSynthesisAgent(BaseAgent):
                 user_prompt=(
                     f"Patient ID: {ctx.patient.patient_id}\n"
                     f"Patient Name: {ctx.patient.name}\n\n"
+                    f"Available modalities: {', '.join(modalities_present) if modalities_present else 'none'}\n"
+                    f"Finding count: {len(ctx.findings)}\n"
+                    "If only one modality is available, keep cross_modality_notes limited to that fact and return no discrepancies.\n\n"
                     f"=== ALL FINDINGS ===\n{findings_text}\n\n"
                     f"Additional instructions: {assignment.instructions}"
                 ),

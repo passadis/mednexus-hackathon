@@ -9,152 +9,48 @@ navigation in the UI.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import structlog
-from openai import AsyncAzureOpenAI
+from agent_framework import Agent, FunctionTool, Message
+from pydantic import BaseModel
 
 from mednexus.config import settings
+from mednexus.observability import mark_span_failure, start_span
 from mednexus.services.cosmos_client import get_cosmos_manager
+from mednexus.services.llm_client import create_agent_framework_chat_client
 
 logger = structlog.get_logger()
 
-# ── Tool Definitions (OpenAI function-calling schema) ────────
+_PATIENT_ID_QUERY_RE = re.compile(r"\b(P\d{3,})\b", re.IGNORECASE)
+_LOAD_PATIENT_VERBS = ("show", "bring up", "open", "load", "go to", "navigate")
+_CASE_QUERY_TERMS = ("case", "summary", "summarize", "what do we know", "tell me about", "overview")
 
-_TOOLS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "list_patients",
-            "description": (
-                "List all patients currently in the system. Returns each "
-                "patient's ID, name, analysis status, number of findings, "
-                "and whether a synthesis report exists."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_patient",
-            "description": (
-                "Search for a patient by name (case-insensitive, partial match). "
-                "Returns matching patient IDs and names."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Patient name or partial name to search for.",
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "load_patient",
-            "description": (
-                "Load a patient's full clinical context (demographics, status, "
-                "findings, synthesis) and signal the UI to navigate to that "
-                "patient's dashboard view."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The patient ID (e.g. P001).",
-                    },
-                },
-                "required": ["patient_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_findings",
-            "description": (
-                "Get the clinical findings for a specific patient, optionally "
-                "filtered by modality (radiology_image, clinical_text, "
-                "audio_transcript)."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The patient ID.",
-                    },
-                    "modality": {
-                        "type": "string",
-                        "description": "Optional modality filter.",
-                        "enum": [
-                            "radiology_image",
-                            "clinical_text",
-                            "audio_transcript",
-                        ],
-                    },
-                },
-                "required": ["patient_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_synthesis",
-            "description": (
-                "Get the diagnostic synthesis report for a patient, including "
-                "the summary, cross-modality notes, discrepancies, and "
-                "recommendations."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The patient ID.",
-                    },
-                },
-                "required": ["patient_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_clinical_data",
-            "description": (
-                "Perform a hybrid (keyword + vector) semantic search across "
-                "all indexed clinical documents — findings, X-ray analyses, "
-                "transcripts, and notes.  Use this when the doctor asks broad "
-                "clinical questions like 'which patients have lung opacity?' "
-                "or 'any cardiac abnormalities across all patients?'.  Can "
-                "optionally be scoped to a single patient."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The clinical search query (e.g. 'lung opacity', 'cardiac findings').",
-                    },
-                    "patient_id": {
-                        "type": "string",
-                        "description": "Optional patient ID to scope the search to.",
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-    },
-]
+class SearchPatientInput(BaseModel):
+    query: str
+
+
+class LoadPatientInput(BaseModel):
+    patient_id: str
+
+
+class GetFindingsInput(BaseModel):
+    patient_id: str
+    modality: str | None = None
+
+
+class GetSynthesisInput(BaseModel):
+    patient_id: str
+
+
+class GetPatientCaseInput(BaseModel):
+    patient_id: str
+
+
+class SearchClinicalDataInput(BaseModel):
+    query: str
+    patient_id: str | None = None
 
 _SYSTEM_PROMPT = """\
 You are the MedNexus Clinical Concierge, an AI assistant embedded in a \
@@ -165,6 +61,7 @@ You have access to the following tools:
 - list_patients: enumerate all patients in the system
 - search_patient: fuzzy-search patients by name
 - load_patient: navigate the UI to a specific patient
+- get_patient_case: retrieve the overall case summary for a patient
 - get_findings: retrieve clinical findings for a patient
 - get_synthesis: retrieve the diagnostic synthesis report
 - search_clinical_data: semantic hybrid search across ALL clinical documents (findings, X-ray reports, transcripts)
@@ -172,6 +69,7 @@ You have access to the following tools:
 Guidelines:
 • Be concise and clinical in tone.
 • When the user asks to "bring up" or "show" a patient, call load_patient.
+• When the user asks for a patient's case, summary, overview, or "what do we know", call get_patient_case.
 • When the user asks about findings or X-ray results, call get_findings.
 • When the user asks broad clinical questions across patients (e.g. "any lung \
 opacity?", "cardiac abnormalities?", "who has abnormal findings?"), use \
@@ -355,6 +253,56 @@ async def _exec_get_synthesis(patient_id: str) -> dict[str, Any]:
     }
 
 
+async def _exec_get_patient_case(patient_id: str) -> dict[str, Any]:
+    """Return a compact patient case view backed by Cosmos and patient-scoped Search."""
+    from mednexus.services.search_client import search_patient_documents
+
+    cosmos = get_cosmos_manager()
+    ctx = await cosmos.get_context(patient_id.upper())
+    if ctx is None:
+        return {"error": f"Patient {patient_id} not found"}
+
+    findings = _all_findings(ctx)
+    synthesis = await _exec_get_synthesis(patient_id)
+
+    search_hits: list[dict[str, Any]] = []
+    try:
+        docs = await search_patient_documents(
+            patient_id.upper(),
+            "clinical summary findings history transcript imaging labs",
+            top=5,
+        )
+        for doc in docs:
+            search_hits.append({
+                "content_type": doc.get("content_type", ""),
+                "source_agent": doc.get("source_agent", ""),
+                "summary": (doc.get("analysis_summary") or doc.get("content", ""))[:280],
+            })
+    except Exception as exc:
+        logger.warning("patient_case_search_error", patient_id=patient_id, error=str(exc))
+
+    active_episode = ctx.get_active_episode()
+    return {
+        "patient_id": ctx.patient.patient_id,
+        "name": ctx.patient.name or "(unnamed)",
+        "status": ctx.status.value,
+        "episodes": len(ctx.episodes),
+        "active_episode": active_episode.label if active_episode else None,
+        "findings_count": len(findings),
+        "latest_findings": [
+            {
+                "modality": f.modality.value,
+                "source_agent": f.source_agent,
+                "summary": f.summary,
+                "confidence": f.confidence,
+            }
+            for f in findings[-5:]
+        ],
+        "synthesis": synthesis.get("reports", []),
+        "search_hits": search_hits,
+    }
+
+
 async def _exec_search_clinical_data(query: str, patient_id: str | None = None) -> dict[str, Any]:
     from mednexus.services.search_client import search_documents, search_patient_documents
 
@@ -379,14 +327,190 @@ async def _exec_search_clinical_data(query: str, patient_id: str | None = None) 
     return {"query": query, "results_count": len(hits), "results": hits}
 
 
-_TOOL_DISPATCH = {
-    "list_patients": lambda _args: _exec_list_patients(),
-    "search_patient": lambda args: _exec_search_patient(args["query"]),
-    "load_patient": lambda args: _exec_load_patient(args["patient_id"]),
-    "get_findings": lambda args: _exec_get_findings(args["patient_id"], args.get("modality")),
-    "get_synthesis": lambda args: _exec_get_synthesis(args["patient_id"]),
-    "search_clinical_data": lambda args: _exec_search_clinical_data(args["query"], args.get("patient_id")),
-}
+def _build_framework_tools(
+    ui_action_ref: dict[str, Any],
+) -> list[FunctionTool]:
+    async def list_patients() -> dict[str, Any]:
+        logger.info("doctor_chat_tool_call", tool="list_patients", args={})
+        return await _exec_list_patients()
+
+    async def search_patient(query: str) -> dict[str, Any]:
+        logger.info("doctor_chat_tool_call", tool="search_patient", args={"query": query})
+        return await _exec_search_patient(query)
+
+    async def load_patient(patient_id: str) -> dict[str, Any]:
+        logger.info("doctor_chat_tool_call", tool="load_patient", args={"patient_id": patient_id})
+        result = await _exec_load_patient(patient_id)
+        if result.get("action") == "navigate":
+            ui_action_ref.clear()
+            ui_action_ref.update({
+                "type": "navigate",
+                "patient_id": result["patient_id"],
+            })
+        return result
+
+    async def get_findings(patient_id: str, modality: str | None = None) -> dict[str, Any]:
+        logger.info(
+            "doctor_chat_tool_call",
+            tool="get_findings",
+            args={"patient_id": patient_id, "modality": modality},
+        )
+        return await _exec_get_findings(patient_id, modality)
+
+    async def get_patient_case(patient_id: str) -> dict[str, Any]:
+        logger.info("doctor_chat_tool_call", tool="get_patient_case", args={"patient_id": patient_id})
+        return await _exec_get_patient_case(patient_id)
+
+    async def get_synthesis(patient_id: str) -> dict[str, Any]:
+        logger.info("doctor_chat_tool_call", tool="get_synthesis", args={"patient_id": patient_id})
+        return await _exec_get_synthesis(patient_id)
+
+    async def search_clinical_data(query: str, patient_id: str | None = None) -> dict[str, Any]:
+        logger.info(
+            "doctor_chat_tool_call",
+            tool="search_clinical_data",
+            args={"query": query, "patient_id": patient_id},
+        )
+        return await _exec_search_clinical_data(query, patient_id)
+
+    return [
+        FunctionTool(
+            name="list_patients",
+            description=(
+                "List all patients currently in the system. Returns each patient's ID, "
+                "name, analysis status, number of findings, and whether a synthesis report exists."
+            ),
+            func=list_patients,
+        ),
+        FunctionTool(
+            name="search_patient",
+            description="Search for a patient by name or partial patient ID.",
+            func=search_patient,
+            input_model=SearchPatientInput,
+        ),
+        FunctionTool(
+            name="load_patient",
+            description="Load a patient's clinical context and navigate the UI to that patient.",
+            func=load_patient,
+            input_model=LoadPatientInput,
+        ),
+        FunctionTool(
+            name="get_patient_case",
+            description=(
+                "Get the overall case for a patient, including episodes, latest findings, "
+                "synthesis reports, and retrieved patient-scoped search context."
+            ),
+            func=get_patient_case,
+            input_model=GetPatientCaseInput,
+        ),
+        FunctionTool(
+            name="get_findings",
+            description="Get clinical findings for a patient, optionally filtered by modality.",
+            func=get_findings,
+            input_model=GetFindingsInput,
+        ),
+        FunctionTool(
+            name="get_synthesis",
+            description="Get the diagnostic synthesis report for a patient.",
+            func=get_synthesis,
+            input_model=GetSynthesisInput,
+        ),
+        FunctionTool(
+            name="search_clinical_data",
+            description="Search indexed clinical documents across one or all patients.",
+            func=search_clinical_data,
+            input_model=SearchClinicalDataInput,
+        ),
+    ]
+
+
+async def _maybe_handle_direct_patient_navigation(
+    messages: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    """Bypass model routing for explicit patient navigation requests."""
+    if not messages:
+        return None
+
+    latest_user_message = next(
+        (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
+        "",
+    ).strip()
+    if not latest_user_message:
+        return None
+
+    patient_match = _PATIENT_ID_QUERY_RE.search(latest_user_message)
+    if not patient_match:
+        return None
+
+    normalized = latest_user_message.lower()
+    if not any(verb in normalized for verb in _LOAD_PATIENT_VERBS):
+        return None
+
+    patient_id = patient_match.group(1).upper()
+    result = await _exec_load_patient(patient_id)
+    if result.get("action") == "navigate":
+        logger.info("doctor_chat_direct_navigation", patient_id=patient_id)
+        return {
+            "reply": f"I've navigated to patient {patient_id}.",
+            "action": {
+                "type": "navigate",
+                "patient_id": patient_id,
+            },
+        }
+
+    return {
+        "reply": result.get("error", f"Patient {patient_id} not found."),
+        "action": None,
+    }
+
+
+async def _maybe_handle_direct_patient_case_query(
+    messages: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    """Bypass model routing for explicit patient case summary questions."""
+    if not messages:
+        return None
+
+    latest_user_message = next(
+        (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
+        "",
+    ).strip()
+    if not latest_user_message:
+        return None
+
+    patient_match = _PATIENT_ID_QUERY_RE.search(latest_user_message)
+    if not patient_match:
+        return None
+
+    normalized = latest_user_message.lower()
+    if not any(term in normalized for term in _CASE_QUERY_TERMS):
+        return None
+
+    patient_id = patient_match.group(1).upper()
+    case = await _exec_get_patient_case(patient_id)
+    if case.get("error"):
+        return {"reply": case["error"], "action": None}
+
+    lines = [
+        f"Case summary for {case['patient_id']} ({case['name']}).",
+        f"Status: {case['status']}. Episodes: {case['episodes']}. Active episode: {case['active_episode'] or 'none'}.",
+        f"Findings: {case['findings_count']}.",
+    ]
+
+    latest_findings = case.get("latest_findings", [])
+    if latest_findings:
+        lines.append("Recent findings:")
+        for finding in latest_findings[:3]:
+            lines.append(f"- {finding['modality']}: {finding['summary']}")
+
+    synthesis = case.get("synthesis", [])
+    if synthesis:
+        lines.append(f"Latest synthesis: {synthesis[-1].get('summary', '')}")
+    elif case.get("search_hits"):
+        lines.append(f"Retrieved context: {case['search_hits'][0].get('summary', '')}")
+
+    logger.info("doctor_chat_direct_case_query", patient_id=patient_id)
+    return {"reply": "\n".join(lines), "action": None}
 
 
 # ── Main Chat Handler ────────────────────────────────────────
@@ -409,90 +533,68 @@ async def handle_doctor_chat(
         - reply (str): The assistant's text response.
         - action (dict | None): A UI action like {"type": "navigate", "patient_id": "P001"}.
     """
-    if settings.use_managed_identity:
-        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    latest_user_message = next(
+        (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
+        "",
+    ).strip()
 
-        credential = DefaultAzureCredential(
-            managed_identity_client_id=settings.managed_identity_client_id
-        )
-        token_provider = get_bearer_token_provider(
-            credential, "https://cognitiveservices.azure.com/.default"
-        )
-        client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            azure_ad_token_provider=token_provider,
-            api_version=settings.azure_openai_api_version,
-        )
-    else:
-        client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-        )
+    with start_span(
+        "doctor_chat.handle_turn",
+        tracer_name="doctor_chat",
+        attributes={
+            "mednexus.message_count": len(messages),
+            "mednexus.latest_user_message": latest_user_message[:200],
+        },
+    ) as span:
+        try:
+            direct_case_result = await _maybe_handle_direct_patient_case_query(messages)
+            if direct_case_result is not None:
+                if span is not None:
+                    span.set_attribute("mednexus.chat.route", "direct_case_query")
+                return direct_case_result
 
-    # Build message list with system prompt
-    full_messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
-        *messages,
-    ]
+            direct_result = await _maybe_handle_direct_patient_navigation(messages)
+            if direct_result is not None:
+                if span is not None:
+                    span.set_attribute("mednexus.chat.route", "direct_navigation")
+                return direct_result
 
-    ui_action: dict[str, Any] | None = None
-
-    try:
-        # Allow up to 5 tool-call rounds
-        for _ in range(5):
-            resp = await client.chat.completions.create(
-                model=settings.azure_openai_deployment,
-                messages=full_messages,
-                tools=_TOOLS,
-                tool_choice="auto",
-                temperature=0.3,
-                max_tokens=1024,
+            ui_action_ref: dict[str, Any] = {}
+            agent = Agent(
+                client=create_agent_framework_chat_client(),
+                name="MedNexus Clinical Concierge",
+                instructions=_SYSTEM_PROMPT,
+                tools=_build_framework_tools(ui_action_ref),
             )
+            session = agent.create_session()
+            agent_messages = [
+                Message(role=msg["role"], text=msg["content"])
+                for msg in messages
+                if msg.get("role") in {"user", "assistant"}
+            ]
 
-            choice = resp.choices[0]
+            logger.info(
+                "doctor_chat_openai_request",
+                deployment=settings.azure_openai_deployment,
+                managed_identity=settings.use_managed_identity,
+                runtime="microsoft_agent_framework",
+            )
+            if span is not None:
+                span.set_attribute("mednexus.chat.route", "agent_framework")
+                span.set_attribute("mednexus.ai.deployment", settings.azure_openai_deployment)
 
-            # If no tool calls, we have the final answer
-            if not choice.message.tool_calls:
-                return {
-                    "reply": choice.message.content or "",
-                    "action": ui_action,
-                }
-
-            # Append assistant message with tool calls
-            full_messages.append(choice.message.model_dump())
-
-            # Execute each tool call
-            for tc in choice.message.tool_calls:
-                fn_name = tc.function.name
-                fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-
-                logger.info("doctor_chat_tool_call", tool=fn_name, args=fn_args)
-
-                handler = _TOOL_DISPATCH.get(fn_name)
-                if handler is None:
-                    result = {"error": f"Unknown tool: {fn_name}"}
-                else:
-                    result = await handler(fn_args)
-
-                # Capture navigate actions for the UI
-                if fn_name == "load_patient" and result.get("action") == "navigate":
-                    ui_action = {
-                        "type": "navigate",
-                        "patient_id": result["patient_id"],
-                    }
-
-                full_messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": json.dumps(result, default=str),
-                })
-
-        # Ran out of rounds
-        return {
-            "reply": "I apologize, I wasn't able to complete that request. Could you try again?",
-            "action": ui_action,
-        }
-
-    finally:
-        await client.close()
+            response = await agent.run(agent_messages, session=session)
+            if span is not None and ui_action_ref:
+                span.set_attribute("mednexus.ui_action_type", ui_action_ref.get("type"))
+                span.set_attribute("mednexus.ui_action_patient_id", ui_action_ref.get("patient_id"))
+            return {
+                "reply": response.text or "",
+                "action": ui_action_ref or None,
+            }
+        except Exception as exc:
+            mark_span_failure(span, exc)
+            logger.exception("doctor_chat_openai_failed")
+            return {
+                "reply": "The assistant is temporarily unavailable. Please try again in a moment.",
+                "action": None,
+            }

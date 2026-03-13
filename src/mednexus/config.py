@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     portal_jwt_secret: str = "mednexus-portal-secret-change-me"
     portal_jwt_expiry_hours: int = 48
 
+    # ── Key Vault fallback (optional) ────────────────────────
+    azure_key_vault_url: str = ""
+    cosmos_key_secret_name: str = "cosmos-key"
+    portal_jwt_secret_name: str = "portal-jwt-secret"
+    azure_openai_realtime_key_secret_name: str = "openai-realtime-api-key"
+
+    # ── Observability / bootstrap ────────────────────────────
+    applicationinsights_connection_string: str = ""
+    mednexus_bootstrap_search_index: bool = False
+
     # ── Managed Identity ─────────────────────────────────────
     use_managed_identity: bool = False
     managed_identity_client_id: str = ""

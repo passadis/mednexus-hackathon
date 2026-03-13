@@ -74,6 +74,17 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 
 ### Agent Pipelines
 
+Current framework status:
+
+- The primary upload orchestration path now runs through a Microsoft Agent Framework workflow
+- The Doctor Chat assistant now runs on Microsoft Agent Framework
+- The Vision Specialist path now executes through a Microsoft Agent Framework workflow
+- The Patient Historian specialist path now executes through a Microsoft Agent Framework workflow
+- The Diagnostic Synthesis specialist path now executes through a Microsoft Agent Framework workflow
+- Application Insights now captures Azure Monitor traces for doctor chat, upload orchestration, specialist workflow execution, synthesis dispatch, and raw LLM calls
+- The remaining compatibility layer is mostly the legacy A2A bus plus Clinical Sorter
+- This keeps the app working while the remaining specialist agents are migrated incrementally
+
 1. **Clinical Sorter** — Monitors the MCP drop-folder, classifies incoming files (PDF, DICOM, IMAGE, AUDIO, LAB_CSV) and extracts patient IDs from filenames. **Phase 3:** Primary consumer of the MCP Clinical Data Gateway — uses `get_patient_records` and `fetch_medical_image` tools.
 2. **Vision Specialist** — Processes medical images via GPT-4o multimodal. Returns structured findings with region, observations, impression, and confidence scores. **Phase 3:** Routes image access through the Clinical Data Gateway for audit logging.
 3. **Patient Historian** — Performs RAG via Azure AI Search. Extracts text from PDFs, transcribes audio (Whisper), and synthesizes patient history.
@@ -246,6 +257,88 @@ mednexus-hackathon/
   - Azure Container Apps Environment
 
 ---
+
+## AZD Template
+
+This repository now includes an `azd` + Terraform template surface:
+
+- `azure.yaml` defines two `containerapp` services: `backend` and `frontend`
+- `infra/` contains the Terraform used by `azd up`
+- `infra/main.tfvars.json` maps `azd` environment values into Terraform for the resource group and deployment location
+- `.devcontainer/devcontainer.json` provides a self-contained authoring environment with Docker, `azd`, Azure CLI, Terraform, Python, and Node.js
+
+Before using the template:
+
+- Install both the Azure CLI (`az`) and the Azure Developer CLI (`azd`)
+- Sign in with both tools:
+  - `az login`
+  - `azd auth login`
+- Both logins are required for a successful `azd up`
+
+Template auth model:
+
+- Cosmos DB stays on API key auth
+- Azure OpenAI Realtime stays on API key auth
+- Azure AI Search, Blob Storage, and standard Azure OpenAI calls use managed identity
+
+What `azd up` provisions automatically:
+
+- Azure Container Apps environment, frontend app, and backend app
+- Azure Container Registry
+- Azure AI Foundry resource with four model deployments:
+  - `gpt-4o`
+  - `text-embedding-3-small`
+  - `whisper`
+  - `gpt-realtime`
+- Azure Cosmos DB
+- Azure AI Search
+- Azure Blob Storage
+- Application Insights, Log Analytics, Key Vault, and a user-assigned managed identity
+- Search index bootstrap matching the notebook schema in `notebooks/setup_search_index.ipynb`
+
+Note on Azure AI Search:
+
+- The Search service itself is provisioned by Terraform
+- The index definition is bootstrapped by the `postprovision` hook via `scripts/bootstrap_search_index.ps1` / `scripts/bootstrap_search_index.sh` using the exact notebook configuration
+- The backend can optionally bootstrap the index too, but runtime bootstrap is disabled by default so Container App startup is not blocked by Search schema drift or RBAC propagation
+- This split exists because Azure AI Search index creation is a data-plane operation rather than a standard ARM resource deployment path
+
+How custom images get into Azure Container Apps:
+
+- `azure.yaml` defines `backend` and `frontend` as `containerapp` services with Dockerfiles
+- `remoteBuild: true` tells `azd` to build those images in Azure and push them to the provisioned ACR
+- `azd deploy` then updates the Container Apps from those freshly built ACR images
+- The placeholder image in Terraform is only the initial infrastructure scaffold; `azd` replaces it during deploy
+
+About AI Search timing:
+
+- Azure AI Search Basic provisioning is often one of the slower control-plane steps in this template
+- That delay is service-side and expected; it is not the index bootstrap
+
+Default model deployment assumptions:
+
+- Azure AI Foundry model capacity is region-dependent; pick a region that has quota for the selected models
+- `gpt-realtime` deploys the `gpt-realtime-1.5` model
+- Deployment capacity variables map to quota allocation in units of 1,000 TPM, but Terraform cannot increase your subscription's regional quota
+- The template now requests `50` capacity units for `gpt-4o`, which means `50,000 TPM` if that quota is available in the target region
+- If your subscription or region capacity differs, override the Terraform variables before deployment
+
+Deployment flow:
+
+```bash
+az login
+azd auth login
+azd init
+azd up
+```
+
+If the repository is already initialized as an `azd` environment, you can skip `azd init`.
+
+Then run:
+
+```bash
+azd up
+```
 
 ## Quick Start
 
@@ -470,7 +563,7 @@ MedNexus is designed with healthcare-grade safety and compliance in mind:
 
 ## Try It — Judge Testing Guide
 
-Two ready-made sample folders are included in [`data/samples/`](data/samples/) — see the [Sample Data README](data/samples/README.md) for detailed descriptions of each case.
+Two ready-made sample folders are included in [`data/samples/`](data/samples/) — see the [Judge Instructions](INSTRUCTIONS.md) for the quickest end-to-end test path.
 
 | Folder | Scenario | Files |
 |---|---|---|

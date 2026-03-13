@@ -1,0 +1,38 @@
+{
+  "name": "MedNexus AZD Template",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/azure/azure-dev/azd:latest": {},
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/terraform:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.azure-dev",
+        "ms-vscode.azure-account",
+        "ms-azuretools.vscode-docker",
+        "HashiCorp.terraform",
+        "ms-python.python",
+        "GitHub.vscode-github-actions"
+      ]
+    }
+  },
+  "postCreateCommand": "set -e; pip install -r requirements.txt; npm ci --prefix ui; azd version; terraform version; az version",
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "vscode"
+}

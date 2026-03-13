@@ -67,26 +67,23 @@ async def transcribe_audio(audio_bytes: bytes) -> TranscriptResult:
 
     try:
         from openai import AsyncAzureOpenAI
+        from mednexus.services.llm_client import _azure_ad_token_provider
 
         if settings.use_managed_identity:
-            from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-
-            credential = DefaultAzureCredential(
-                managed_identity_client_id=settings.managed_identity_client_id
-            )
-            token_provider = get_bearer_token_provider(
-                credential, "https://cognitiveservices.azure.com/.default"
-            )
             client = AsyncAzureOpenAI(
                 azure_endpoint=settings.azure_openai_endpoint,
-                azure_ad_token_provider=token_provider,
+                azure_ad_token_provider=_azure_ad_token_provider(),
                 api_version=settings.azure_openai_api_version,
+                timeout=30.0,
+                max_retries=1,
             )
         else:
             client = AsyncAzureOpenAI(
                 azure_endpoint=settings.azure_openai_endpoint,
                 api_key=settings.azure_openai_api_key,
                 api_version=settings.azure_openai_api_version,
+                timeout=30.0,
+                max_retries=1,
             )
 
         # Whisper requires a file-like object with a name attribute
