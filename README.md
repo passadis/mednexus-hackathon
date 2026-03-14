@@ -246,14 +246,10 @@ mednexus-hackathon/
 
 - **Python 3.11+**
 - **Node.js 20+** (for the UI)
-- An **Azure subscription** with the following services provisioned:
-  - Azure OpenAI (GPT-4o deployment, Whisper transcription)
-  - Microsoft Foundry (GPT Realtime Model, for Patient Assistant)
-  - Azure Cosmos DB (NoSQL API)
-  - Azure AI Search
-  - Azure Blob Storage
-  - User Assigned Managed Identity
-  - Azure Container Apps Environment
+- **Docker** (for local development or container builds)
+- **Azure CLI** (`az`) and **Azure Developer CLI** (`azd`)
+- **Terraform >= 1.8.0**
+- An **Azure subscription** with sufficient quota — all Azure resources (Cosmos DB, AI Search, Blob Storage, OpenAI, Container Apps, etc.) are provisioned automatically by `azd up`
 
 ---
 
