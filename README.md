@@ -269,6 +269,7 @@ This repository now includes an `azd` + Terraform template surface:
 Before using the template:
 
 - Install both the Azure CLI (`az`) and the Azure Developer CLI (`azd`)
+- Install **Terraform >= 1.8.0** (required by the provider configuration in `infra/`)
 - Sign in with both tools:
   - `az login`
   - `azd auth login`
