@@ -23,4 +23,10 @@ venv/
 node_modules/
 src/mednexus/functions
 /host.json
+.azure
+.terraform.lock.*
+.terraform.tfstate
+.terraform.tfstate.backup
+
+
 
