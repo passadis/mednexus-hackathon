@@ -318,7 +318,9 @@ About AI Search timing:
 Default model deployment assumptions:
 
 - Azure AI Foundry model capacity is region-dependent; pick a region that has quota for the selected models
-- `gpt-realtime` deploys the `gpt-realtime-1.5` model
+- `gpt-realtime` deploys the `gpt-realtime-1.5` model (version `2026-02-23`)
+- **`gpt-realtime-1.5` with GlobalStandard SKU is only available in:** `eastus2`, `swedencentral`, `centralus`, `canadacentral`, and `francecentral` — deploying to any other region will fail with an `InvalidSku` error
+- **Recommended region: `eastus2`** — it has the widest model coverage across all deployments used by this template (`gpt-4o`, `text-embedding-3-small`, `whisper`, and `gpt-realtime-1.5`)
 - Deployment capacity variables map to quota allocation in units of 1,000 TPM, but Terraform cannot increase your subscription's regional quota
 - The template now requests `50` capacity units for `gpt-4o`, which means `50,000 TPM` if that quota is available in the target region
 - If your subscription or region capacity differs, override the Terraform variables before deployment
