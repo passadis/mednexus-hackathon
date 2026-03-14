@@ -101,6 +101,11 @@ app.add_middleware(
 # ── Portal routes (share, context, chat, voice) ─────────────
 app.include_router(portal_router)
 
+# ── MCP protocol server (Streamable HTTP at /mcp) ───────────
+from mednexus.mcp.mcp_server import get_mcp_app  # noqa: E402
+
+app.mount("/mcp", get_mcp_app())
+
 
 # ── Request / Response Models ────────────────────────────────
 

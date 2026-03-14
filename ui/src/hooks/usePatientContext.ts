@@ -4,9 +4,9 @@ import type { PatientContext } from '../types';
 /** Status values that indicate agents are still processing. */
 const PROCESSING_STATUSES = new Set([
   'intake',
-  'waiting_for_radiology',
-  'waiting_for_history',
-  'waiting_for_transcript',
+  'waiting_for_radiology_report',
+  'waiting_for_patient_history',
+  'waiting_for_audio_transcript',
   'cross_modality_check',
 ]);
 

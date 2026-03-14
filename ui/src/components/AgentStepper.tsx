@@ -27,9 +27,9 @@ const PIPELINE: Step[] = [
 // Map episode.status → which pipeline step is *active*
 const STATUS_TO_ACTIVE_STEP: Record<string, number> = {
   intake:                   0,
-  waiting_for_radiology:    1,
-  waiting_for_history:      1,
-  waiting_for_transcript:   1,
+  waiting_for_radiology_report: 1,
+  waiting_for_patient_history:  1,
+  waiting_for_audio_transcript: 1,
   cross_modality_check:     2,
   synthesis_complete:       4,   // beyond last index → all done
   review_required:          4,

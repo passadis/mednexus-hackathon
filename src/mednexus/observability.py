@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from contextlib import contextmanager
@@ -28,6 +29,8 @@ def configure_observability() -> None:
         if _configured:
             return
 
+        _quiet_azure_sdk_logging()
+
         from azure.monitor.opentelemetry import configure_azure_monitor
 
         auth_string_present = bool(os.getenv("APPLICATIONINSIGHTS_AUTHENTICATION_STRING"))
@@ -53,6 +56,18 @@ def configure_observability() -> None:
         _enable_agent_framework_instrumentation()
         _configured = True
         logger.info("observability_configured")
+
+
+def _quiet_azure_sdk_logging() -> None:
+    """Reduce noisy Azure SDK HTTP header/status logs in Container Apps."""
+    for logger_name in [
+        "azure",
+        "azure.core.pipeline.policies.http_logging_policy",
+        "azure.monitor",
+        "azure.identity",
+        "opentelemetry.exporter",
+    ]:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def _get_azure_monitor_credential():
