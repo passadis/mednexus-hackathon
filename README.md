@@ -40,7 +40,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 - **EHR-ready FHIR R4 export.** Signed-off episodes can be exported as standards-compliant FHIR R4 transaction Bundles (Patient + DiagnosticReport + Observations), ready to feed into downstream EHR systems.
 - **Visual agent pipeline stepper.** Each episode card shows a horizontal 4-step pipeline (Intake → Specialist → Cross-Check → Synthesis) with animated progress — green checkmarks for completed steps, a pulsing indicator for the active step, and specialist details pulled from the activity log.
 - **Doctor Chat Assistant.** A floating chat panel powered by GPT-4o with function-calling tools. Doctors can ask natural-language questions like *"Show me the last patient"* or *"What did the X-ray find?"* — the assistant queries patients, loads contexts, and retrieves findings or synthesis reports on demand.
-- **Platform Observability dashboard.** A built-in admin page (accessible from the sidebar) showing real-time platform stats, per-agent activity breakdowns, MCP operation counts, success/failure rates, and a filterable HIPAA audit trail table — giving operators full visibility into agent behaviour without leaving the UI.
+- **Clinical Operations dashboard.** A built-in admin page (accessible from the sidebar) showing clinic-facing operational stats like patients this month, episodes created, synthesis completion, approvals per doctor, modality mix, and recent clinical activity.
 - **Clinical Navigator.** A staff-only read-only retrieval assistant for cross-case questions like "show me all today's X-rays" or "find injury-related cases", grounded in Cosmos DB and Azure AI Search and able to jump directly into an existing patient record.
 - **Live agent transparency.** A real-time "Agent Chatter" pane shows every agent's reasoning as it works — what it found, what it decided, what it handed off — so doctors understand *how* the AI reached its conclusions.
 - **"My Story" — Empathy Addon.** Inspired by Johns Hopkins' *This Is My Story* (TIMS) research — studies show a 74 % increase in empathy and 99 % improvement in meaningful interactions when care teams know the patient as a person. A compact card on every patient view captures four questions: *How do you prefer to be addressed?*, *What brings you joy?*, *What does your care team need to know?*, and *What brings you peace?* Answers are persisted to Cosmos DB **and** indexed into AI Search, so the Patient Historian RAG agent automatically discovers personal context alongside clinical findings — enabling synthesis reports that reference the whole patient, not just the diagnosis.
@@ -71,7 +71,7 @@ A doctor receives an X-ray, a lab report, a voice recording from the patient, an
 
 ## Architecture
 
-![MedNexus Architecture](architecture.png)
+![MedNexus Architecture](medarchitecture.png)
 
 ### Agent Pipelines
 
@@ -100,8 +100,7 @@ sequenceDiagram
     participant UI as Doctor UI
     participant API as FastAPI
     participant MCP as MCP Layer<br/>(Blob / Local FS)
-    participant CS as Clinical Sorter
-    participant ORC as Orchestrator
+    participant WF as Orchestrator Workflow
     participant VS as Vision Specialist<br/>(GPT-4o)
     participant PH as Patient Historian<br/>(RAG · Whisper)
     participant DS as Diagnostic Synthesis
@@ -115,37 +114,36 @@ sequenceDiagram
     UI->>API: POST /api/patients/{id}/upload
     API->>MCP: Store file (Blob / FS)
     API->>DB: Create/update ClinicalContext
-    API->>CS: Classify & route file
-    CS->>CS: Detect modality (IMAGE / PDF / AUDIO / CSV)
-    CS-->>UI: 🔔 A2A chatter (classification result)
-    CS->>ORC: Hand off classified file
+    API->>API: Clinical Sorter classifies file type
+    API->>WF: Start primary workflow for the uploaded file
+    WF->>DB: Episode status → waiting_for_radiology_report / waiting_for_patient_history / waiting_for_audio_transcript
+    WF-->>UI: 🔄 Workflow status events + context refresh
 
-    Note over ORC,DS: ── Parallel Specialist Analysis ──
+    Note over WF,DS: ── Specialist Analysis ──
 
-    ORC->>DB: Update status → waiting_for_specialists
-    
     par Image Analysis
-        ORC->>VS: Process medical image
+        WF->>VS: Process medical image
         VS->>VS: GPT-4o multimodal analysis
-        VS-->>UI: 🔔 A2A chatter (findings)
-        VS->>ORC: Return structured findings
+        VS->>WF: Return structured findings
     and Text / Audio / Lab Analysis
-        ORC->>PH: Process PDF / audio / CSV
+        WF->>PH: Process PDF / audio / CSV
         PH->>SRH: Index document + embeddings
         PH->>PH: Whisper transcription (if audio)
         PH->>SRH: Hybrid search (keyword + vector)
-        PH-->>UI: 🔔 A2A chatter (history summary)
-        PH->>ORC: Return findings
+        PH->>WF: Return findings / history summary
     end
 
-    ORC->>DB: Store all findings
+    WF->>DB: Store findings + refresh patient context
+    WF-->>UI: 🔄 Context updated
 
-    Note over ORC,DS: ── Cross-Modality Synthesis ──
+    Note over WF,DS: ── Cross-Modality Synthesis ──
 
-    ORC->>DS: All modalities ready → synthesize
+    WF->>DB: Status → cross_modality_check
+    WF->>DS: Trigger synthesis when findings are ready
     DS->>DS: Compare audio vs X-ray<br/>Flag discrepancies
-    DS->>DB: Store Synthesis Report
-    DS-->>UI: 🔔 A2A chatter (synthesis complete)
+    DS->>WF: Return Synthesis Report
+    WF->>DB: Store Synthesis Report + status → synthesis_complete
+    WF-->>UI: 🔄 Synthesis completed event + context refresh
     UI->>Doc: Display Synthesis Report
 
     Note over Doc,UI: ── Doctor Review & Sign-Off ──
@@ -511,18 +509,17 @@ Before approving, doctors can **edit the Synthesis Report** directly in the UI �
 The Synthesis Report card in the AGUI includes a prominent **"Approve and Sign-off by MD"** button. When clicked, it prompts for the physician's name and calls `POST /api/patients/{id}/approve`. The context transitions to `APPROVED` status with full attribution (who, when, notes). This ensures no diagnostic output leaves the system without a qualified human review.
 
 ### Platform Observability Dashboard
-A dedicated admin page accessible from the sidebar gives operators real-time visibility into the entire platform without leaving the UI. It is powered by two backend endpoints:
+A dedicated admin page accessible from the sidebar now acts as a clinic operations dashboard rather than a raw agent telemetry console.
 
-- **`GET /api/stats`** — returns aggregate counters: total patients, total findings, per-agent activity breakdown (how many findings each agent produced), agent status, MCP operation counts, and success/failure rates.
-- **`GET /api/audit`** — returns the most recent HIPAA-compliant audit trail entries from the MCP Clinical Data Gateway (`MCPAuditLogger`), each with timestamp, agent ID, patient ID, action, and outcome.
+The current dashboard is derived primarily from patient and episode records already stored in Cosmos DB, with workflow activity and sign-off events coming from episode activity logs.
 
 The frontend (`ObservabilityPage.tsx`) renders this data as:
 | Section | What it shows |
 |---|---|
-| **Stat cards** | Patients, findings, agents, MCP operations at a glance |
-| **Agent activity chart** | Horizontal bar breakdown by agent (how many findings each produced) |
-| **MCP operations chart** | Success vs. failure counts across gateway tool calls |
-| **Audit trail table** | Filterable, scrollable log of every MCP access event with timestamps and status badges |
+| **Stat cards** | Total patients, in-progress cases, completed syntheses, approved episodes |
+| **Monthly charts** | Patients per day and episodes per day for the current month |
+| **Clinical breakdowns** | Case status mix, approvals per doctor, and top modality mix |
+| **Recent activity table** | Latest workflow and sign-off events across patient episodes |
 
 The page uses the same view-state pattern as the rest of the app (`View = 'grid' | 'patient' | 'observability'`) — no router needed. A sidebar button toggles the view, and a "Back to Patient Grid" button returns to the main workflow. All data refreshes on each visit; no polling or WebSocket connection is required.
 
