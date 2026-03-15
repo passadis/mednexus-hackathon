@@ -36,6 +36,7 @@ Folder: `data/samples/sample-02/`
 
 1. Open MedNexus and select (or create) a patient by typing a new name or patient ID (for example `P037`) and pressing Enter.
 2. Click **Upload File** and select files from either `data/samples/sample-01/` or `data/samples/sample-02/`.
+   > **Important:** Uploaded files must be **less than 1 MB**. Larger files will be rejected by the server.
 3. **Important:** The file picker defaults to "Custom Files" — change the dropdown to **All Files** so `.txt` files are visible.
 4. Watch the **Agent Stepper** on each episode card to follow the pipeline: Intake → Specialist → Cross-Check → Synthesis.
 5. Watch the **Agent Chatter** pane to see each agent's reasoning in real time.
