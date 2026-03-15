@@ -216,7 +216,7 @@ function StatCard({
         <Icon className="h-5 w-5" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-slate-800">{value}</p>
+        <p className="text-2xl font-bold text-white">{value}</p>
         <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p>
       </div>
     </div>
@@ -238,20 +238,20 @@ function VerticalBars({
   return (
     <div className="card">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
       <div className="flex h-48 items-end gap-2 overflow-hidden">
         {data.map((item, index) => (
           <div key={`${item.dayLabel}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
             <div className="text-[10px] font-semibold text-slate-500">{item.value}</div>
-            <div className="flex h-32 w-full items-end rounded-t-xl bg-slate-100/80 px-[2px]">
+            <div className="flex h-32 w-full items-end rounded-t-xl bg-white/5 px-[2px]">
               <div
                 className={`w-full rounded-t-lg transition-all duration-500 ${tone}`}
                 style={{ height: `${Math.max((item.value / max) * 100, item.value > 0 ? 8 : 0)}%` }}
               />
             </div>
-            <div className="w-full truncate text-center text-[10px] text-slate-400">{item.dayLabel}</div>
+            <div className="w-full truncate text-center text-[10px] text-slate-500">{item.dayLabel}</div>
           </div>
         ))}
       </div>
@@ -274,17 +274,17 @@ function HorizontalBars({
   return (
     <div className="card">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
       <div className="space-y-3">
         {data.map((item) => (
           <div key={item.label}>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-medium text-slate-600">{item.label}</span>
-              <span className="text-slate-400">{item.value}</span>
+              <span className="font-medium text-slate-300">{item.label}</span>
+              <span className="text-slate-500">{item.value}</span>
             </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/5">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${tone}`}
                 style={{ width: `${Math.max((item.value / max) * 100, item.value > 0 ? 8 : 0)}%` }}
@@ -323,21 +323,21 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
   const dashboard = useMemo(() => deriveDashboardData(patients), [patients]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
+    <div className="flex-1 overflow-y-auto bg-surface-0 p-6">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {onBackToGrid && (
             <button
               type="button"
               onClick={onBackToGrid}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-brand-600 transition hover:bg-brand-50"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-brand-400 transition hover:bg-brand-500/10"
             >
               <Home className="h-3.5 w-3.5" /> Back to Patient Grid
             </button>
           )}
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Clinical Operations Dashboard</h2>
-            <p className="text-sm text-slate-400">A simple month-to-date view of patient flow, syntheses, and approvals.</p>
+            <h2 className="text-xl font-bold text-white">Clinical Operations Dashboard</h2>
+            <p className="text-sm text-slate-500">A simple month-to-date view of patient flow, syntheses, and approvals.</p>
           </div>
         </div>
 
@@ -348,10 +348,10 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard label="Total Patients" value={dashboard.totalPatients} icon={Users} accent="bg-brand-50 text-brand-600" />
-        <StatCard label="In Progress" value={dashboard.inProgressCases} icon={Activity} accent="bg-amber-50 text-amber-600" />
-        <StatCard label="Syntheses Complete" value={dashboard.completedSyntheses} icon={FileText} accent="bg-emerald-50 text-emerald-600" />
-        <StatCard label="Approved Episodes" value={dashboard.approvedEpisodes} icon={ShieldCheck} accent="bg-blue-50 text-blue-600" />
+        <StatCard label="Total Patients" value={dashboard.totalPatients} icon={Users} accent="bg-brand-500/15 text-brand-400" />
+        <StatCard label="In Progress" value={dashboard.inProgressCases} icon={Activity} accent="bg-amber-500/15 text-amber-400" />
+        <StatCard label="Syntheses Complete" value={dashboard.completedSyntheses} icon={FileText} accent="bg-emerald-500/15 text-emerald-400" />
+        <StatCard label="Approved Episodes" value={dashboard.approvedEpisodes} icon={ShieldCheck} accent="bg-blue-500/15 text-blue-400" />
       </div>
 
       <div className="mb-6 grid gap-4 xl:grid-cols-2">
@@ -392,17 +392,17 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
 
       <div className="card">
         <div className="mb-4 flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 text-brand-500" />
+          <ClipboardList className="h-4 w-4 text-brand-400" />
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Recent Clinical Activity</h3>
-            <p className="text-xs text-slate-400">Latest workflow and sign-off events across the clinic</p>
+            <h3 className="text-sm font-semibold text-slate-200">Recent Clinical Activity</h3>
+            <p className="text-xs text-slate-500">Latest workflow and sign-off events across the clinic</p>
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
+              <tr className="border-b border-white/[0.06] text-left text-xs uppercase tracking-[0.18em] text-slate-500">
                 <th className="pb-3 pr-3 font-semibold">Time</th>
                 <th className="pb-3 pr-3 font-semibold">Patient</th>
                 <th className="pb-3 pr-3 font-semibold">Episode</th>
@@ -412,7 +412,7 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
             </thead>
             <tbody>
               {dashboard.recentActivity.map((item, index) => (
-                <tr key={`${item.timestamp}-${item.patientId}-${index}`} className="border-b border-slate-50">
+                <tr key={`${item.timestamp}-${item.patientId}-${index}`} className="border-b border-white/[0.04]">
                   <td className="py-3 pr-3 whitespace-nowrap text-xs text-slate-500">
                     {new Date(item.timestamp).toLocaleString('en-US', {
                       month: 'short',
@@ -421,22 +421,22 @@ export function ObservabilityPage({ onBackToGrid }: { onBackToGrid?: () => void 
                       minute: '2-digit',
                     })}
                   </td>
-                  <td className="py-3 pr-3 text-sm font-medium text-slate-700">{item.patientId}</td>
-                  <td className="py-3 pr-3 text-sm text-slate-600">{item.episodeLabel}</td>
+                  <td className="py-3 pr-3 text-sm font-medium text-slate-200">{item.patientId}</td>
+                  <td className="py-3 pr-3 text-sm text-slate-300">{item.episodeLabel}</td>
                   <td className="py-3 pr-3">
-                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                    <span className="inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
                       {humanizeLabel(item.action)}
                     </span>
                   </td>
-                  <td className="py-3 text-sm text-slate-600">{item.detail || 'No detail available'}</td>
+                  <td className="py-3 text-sm text-slate-400">{item.detail || 'No detail available'}</td>
                 </tr>
               ))}
               {dashboard.recentActivity.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-12 text-center">
-                    <CalendarDays className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-500">No clinic activity yet</p>
-                    <p className="text-xs text-slate-400">Run a patient workflow and refresh this page.</p>
+                    <CalendarDays className="mx-auto mb-3 h-8 w-8 text-slate-600" />
+                    <p className="text-sm font-medium text-slate-400">No clinic activity yet</p>
+                    <p className="text-xs text-slate-500">Run a patient workflow and refresh this page.</p>
                   </td>
                 </tr>
               )}

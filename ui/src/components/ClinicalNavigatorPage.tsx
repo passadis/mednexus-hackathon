@@ -121,25 +121,25 @@ export function ClinicalNavigatorPage({
   };
 
   return (
-    <div className="flex flex-1 overflow-hidden bg-slate-50/50">
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+    <div className="flex flex-1 overflow-hidden bg-surface-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-white/[0.06] bg-surface-1">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-5">
           <div className="flex items-center gap-3">
             {onBackToGrid && (
               <button
                 type="button"
                 onClick={onBackToGrid}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-brand-600 transition hover:bg-brand-50"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-brand-400 transition hover:bg-brand-500/10"
               >
                 <Home className="h-3.5 w-3.5" /> Back to Patient Grid
               </button>
             )}
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Clinical Navigator</h2>
-              <p className="text-sm text-slate-400">Read-only case retrieval assistant for staff</p>
+              <h2 className="text-xl font-bold text-white">Clinical Navigator</h2>
+              <p className="text-sm text-slate-500">Read-only case retrieval assistant for staff</p>
             </div>
           </div>
-          <div className="hidden rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 md:block">
+          <div className="hidden rounded-full bg-brand-500/15 px-3 py-1 text-xs font-medium text-brand-300 md:block">
             Cosmos + AI Search
           </div>
         </div>
@@ -148,15 +148,15 @@ export function ClinicalNavigatorPage({
           {messages.map((msg, index) => (
             <div key={`${msg.role}-${index}`} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100">
-                  <Bot className="h-4 w-4 text-brand-600" />
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500/20">
+                  <Bot className="h-4 w-4 text-brand-400" />
                 </div>
               )}
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === 'user'
                     ? 'rounded-br-md bg-brand-600 text-white'
-                    : 'rounded-bl-md bg-slate-100 text-slate-700'
+                    : 'rounded-bl-md bg-surface-2 text-slate-300'
                 }`}
               >
                 {msg.content.split('\n').map((line, i) => (
@@ -167,8 +167,8 @@ export function ClinicalNavigatorPage({
                 ))}
               </div>
               {msg.role === 'user' && (
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                  <User className="h-4 w-4 text-emerald-600" />
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                  <User className="h-4 w-4 text-emerald-400" />
                 </div>
               )}
             </div>
@@ -176,24 +176,24 @@ export function ClinicalNavigatorPage({
 
           {loading && (
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100">
-                <Bot className="h-4 w-4 text-brand-600" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500/20">
+                <Bot className="h-4 w-4 text-brand-400" />
               </div>
-              <div className="rounded-2xl rounded-bl-md bg-slate-100 px-4 py-2">
+              <div className="rounded-2xl rounded-bl-md bg-surface-2 px-4 py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-brand-500" />
               </div>
             </div>
           )}
         </div>
 
-        <div className="border-t border-slate-100 px-6 py-4">
+        <div className="border-t border-white/[0.06] px-6 py-4">
           <div className="mb-3 flex flex-wrap gap-2">
             {QUICK_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
                 onClick={() => setInput(prompt)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-brand-300 hover:text-brand-600"
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 transition hover:border-brand-500/30 hover:text-brand-400"
               >
                 {prompt}
               </button>
@@ -207,13 +207,14 @@ export function ClinicalNavigatorPage({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask about cases, imaging, episodes, or findings..."
-              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/30"
               disabled={loading}
             />
             <button
               type="button"
               onClick={sendMessage}
               disabled={loading || !input.trim()}
+              aria-label="Send message"
               className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send className="h-4 w-4" />
@@ -222,14 +223,14 @@ export function ClinicalNavigatorPage({
         </div>
       </div>
 
-      <aside className="hidden w-[400px] shrink-0 overflow-y-auto bg-slate-50 p-6 xl:block">
+      <aside className="hidden w-[400px] shrink-0 overflow-y-auto bg-surface-0 p-6 xl:block">
         <div className="mb-4 flex items-center gap-2">
-          <Search className="h-4 w-4 text-brand-500" />
-          <h3 className="text-sm font-semibold text-slate-700">Structured Results</h3>
+          <Search className="h-4 w-4 text-brand-400" />
+          <h3 className="text-sm font-semibold text-slate-200">Structured Results</h3>
         </div>
 
         {!results && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-400">
+          <div className="rounded-2xl border border-dashed border-white/10 bg-surface-2 p-5 text-sm text-slate-500">
             Ask a retrieval question and the navigator will surface case cards here.
           </div>
         )}
@@ -237,33 +238,33 @@ export function ClinicalNavigatorPage({
         {results?.kind === 'cases' && (
           <div className="space-y-3">
             {results.items.map((item, index) => (
-              <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div key={index} className="rounded-2xl border border-white/[0.06] bg-surface-2 p-4 shadow-sm">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-sm font-semibold text-white">
                       {String(item.name ?? '(unnamed)')}
                     </p>
-                    <p className="text-xs text-slate-400">{String(item.patient_id ?? '')}</p>
+                    <p className="text-xs text-slate-500">{String(item.patient_id ?? '')}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => typeof item.patient_id === 'string' && onNavigatePatient(item.patient_id)}
-                    className="rounded-lg bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-700 transition hover:bg-brand-100"
+                    className="rounded-lg bg-brand-500/15 px-2.5 py-1 text-[11px] font-medium text-brand-400 transition hover:bg-brand-500/25"
                   >
                     Open
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                   {String(item.episode_label ?? `${item.episodes ?? 1} episode(s)`)}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                   Status: {String(item.status ?? '—')}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   Updated: {formatDateTime(item.updated_at)}
                 </p>
                 {typeof item.thumbnail_url === 'string' && item.thumbnail_url && (
-                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.06] bg-surface-1">
                     <img
                       src={item.thumbnail_url}
                       alt={`Thumbnail for ${String(item.patient_id ?? 'case')}`}
@@ -275,14 +276,14 @@ export function ClinicalNavigatorPage({
                 {Array.isArray(item.modalities) && item.modalities.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {item.modalities.map((modality) => (
-                      <span key={String(modality)} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                      <span key={String(modality)} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400">
                         {String(modality)}
                       </span>
                     ))}
                   </div>
                 )}
                 {typeof item.summary === 'string' && item.summary && (
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.summary}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-300">{item.summary}</p>
                 )}
               </div>
             ))}
@@ -292,52 +293,52 @@ export function ClinicalNavigatorPage({
         {results?.kind === 'search_hits' && (
           <div className="space-y-3">
             {results.items.map((item, index) => (
-              <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div key={index} className="rounded-2xl border border-white/[0.06] bg-surface-2 p-4 shadow-sm">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{String(item.patient_id ?? '')}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-sm font-semibold text-white">{String(item.patient_id ?? '')}</p>
+                    <p className="text-xs text-slate-500">
                       {String(item.content_type ?? '')} · {String(item.source_agent ?? '')}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => typeof item.patient_id === 'string' && onNavigatePatient(item.patient_id)}
-                    className="rounded-lg bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-700 transition hover:bg-brand-100"
+                    className="rounded-lg bg-brand-500/15 px-2.5 py-1 text-[11px] font-medium text-brand-400 transition hover:bg-brand-500/25"
                   >
                     Open
                   </button>
                 </div>
-                <p className="text-sm leading-relaxed text-slate-600">{String(item.summary ?? '')}</p>
-                <p className="mt-2 text-[11px] text-slate-400">Score: {String(item.score ?? '—')}</p>
+                <p className="text-sm leading-relaxed text-slate-300">{String(item.summary ?? '')}</p>
+                <p className="mt-2 text-[11px] text-slate-500">Score: {String(item.score ?? '—')}</p>
               </div>
             ))}
           </div>
         )}
 
         {results?.kind === 'case_summary' && results.items[0] && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-white/[0.06] bg-surface-2 p-5 shadow-sm">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <p className="text-lg font-bold text-slate-800">{String(results.items[0].name ?? '(unnamed)')}</p>
-                <p className="text-xs text-slate-400">{String(results.items[0].patient_id ?? '')}</p>
+                <p className="text-lg font-bold text-white">{String(results.items[0].name ?? '(unnamed)')}</p>
+                <p className="text-xs text-slate-500">{String(results.items[0].patient_id ?? '')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => typeof results.items[0].patient_id === 'string' && onNavigatePatient(results.items[0].patient_id as string)}
-                className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-500/15 px-3 py-1.5 text-xs font-medium text-brand-400 transition hover:bg-brand-500/25"
               >
                 Open <ArrowRight className="h-3 w-3" />
               </button>
             </div>
-            <div className="space-y-1.5 text-sm text-slate-600">
+            <div className="space-y-1.5 text-sm text-slate-300">
               <p>Status: {String(results.items[0].status ?? '—')}</p>
               <p>Episodes: {String(results.items[0].episodes ?? '—')}</p>
               <p>Active episode: {String(results.items[0].active_episode ?? '—')}</p>
               <p>Findings: {String(results.items[0].findings_count ?? '—')}</p>
             </div>
             {typeof results.items[0].thumbnail_url === 'string' && results.items[0].thumbnail_url && (
-              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.06] bg-surface-1">
                 <img
                   src={String(results.items[0].thumbnail_url)}
                   alt={`Thumbnail for ${String(results.items[0].patient_id ?? 'case')}`}
@@ -347,9 +348,9 @@ export function ClinicalNavigatorPage({
               </div>
             )}
             {typeof results.items[0].latest_synthesis === 'string' && results.items[0].latest_synthesis && (
-              <div className="mt-4 rounded-xl bg-slate-50 p-4">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Latest synthesis</p>
-                <p className="text-sm leading-relaxed text-slate-700">{String(results.items[0].latest_synthesis)}</p>
+              <div className="mt-4 rounded-xl bg-white/5 p-4">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Latest synthesis</p>
+                <p className="text-sm leading-relaxed text-slate-300">{String(results.items[0].latest_synthesis)}</p>
               </div>
             )}
           </div>

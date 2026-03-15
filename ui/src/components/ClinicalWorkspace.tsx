@@ -21,12 +21,12 @@ interface ClinicalWorkspaceProps {
 export function ClinicalWorkspace({ context, loading, error, onRefresh, onDeleteEpisode }: ClinicalWorkspaceProps) {
   if (!context && !loading && !error) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-slate-50 p-8">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-50">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-surface-0 p-8">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-500/15">
           <FileUp className="h-10 w-10 text-brand-400" />
         </div>
-        <h2 className="text-xl font-semibold text-slate-600">Welcome to MedNexus</h2>
-        <p className="max-w-md text-center text-sm text-slate-400">
+        <h2 className="text-xl font-semibold text-slate-300">Welcome to MedNexus</h2>
+        <p className="max-w-md text-center text-sm text-slate-500">
           Search for a Patient ID in the sidebar, or upload a medical file to begin
           the multi-agent clinical analysis pipeline.
         </p>
@@ -36,7 +36,7 @@ export function ClinicalWorkspace({ context, loading, error, onRefresh, onDelete
 
   if (loading && !context) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-slate-50">
+      <div className="flex flex-1 items-center justify-center bg-surface-0">
         <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
       </div>
     );
@@ -44,7 +44,7 @@ export function ClinicalWorkspace({ context, loading, error, onRefresh, onDelete
 
   if (error) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-slate-50">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-0">
         <AlertCircle className="h-8 w-8 text-medical-red" />
         <p className="text-sm text-slate-500">{error}</p>
         <button onClick={onRefresh} className="btn-secondary">
@@ -89,15 +89,15 @@ export function ClinicalWorkspace({ context, loading, error, onRefresh, onDelete
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-6">
+    <div className="flex flex-1 flex-col overflow-y-auto bg-surface-0 p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">
+          <h2 className="text-2xl font-bold text-white">
             Patient: {context.patient.name || context.patient.patient_id}
           </h2>
           <div className="mt-1 flex items-center gap-3">
-            <span className="text-sm text-slate-400">ID: {context.patient.patient_id}</span>
+            <span className="text-sm text-slate-500">ID: {context.patient.patient_id}</span>
             <StatusBadge status={context.status} />
             {hasEpisodes && (
               <span className="text-xs text-slate-400">

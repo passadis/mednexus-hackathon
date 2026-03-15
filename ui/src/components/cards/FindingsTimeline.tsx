@@ -12,14 +12,14 @@ export function FindingsTimeline({ activities }: FindingsTimelineProps) {
   return (
     <div className="card">
       <div className="mb-4 flex items-center gap-2">
-        <Clock className="h-4 w-4 text-slate-400" />
-        <h3 className="text-sm font-semibold text-slate-700">Activity Timeline</h3>
+        <Clock className="h-4 w-4 text-slate-500" />
+        <h3 className="text-sm font-semibold text-slate-200">Activity Timeline</h3>
         <span className="ml-auto badge-blue">{activities.length} events</span>
       </div>
 
       <div className="relative space-y-4">
         {/* Vertical line */}
-        <div className="absolute left-[15px] top-1 bottom-1 w-0.5 bg-slate-100" />
+        <div className="absolute left-[15px] top-1 bottom-1 w-0.5 bg-white/10" />
 
         {activities.map((act, i) => {
           const agentKey = act.agent.split('-')[0];
@@ -40,13 +40,13 @@ export function FindingsTimeline({ activities }: FindingsTimelineProps) {
                   <span className={`text-xs font-medium ${style.text}`}>
                     {formatAgentName(act.agent)}
                   </span>
-                  <span className="text-[10px] text-slate-300">
+                  <span className="text-[10px] text-slate-500">
                     {new Date(act.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500">{act.action}</p>
+                <p className="text-xs text-slate-400">{act.action}</p>
                 {act.detail && (
-                  <p className="mt-0.5 text-xs text-slate-400">{act.detail}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{act.detail}</p>
                 )}
               </div>
             </div>

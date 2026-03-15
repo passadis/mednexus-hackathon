@@ -15,18 +15,18 @@ export function AgentChatter({ messages }: AgentChatterProps) {
   }, [messages]);
 
   return (
-    <aside className="flex w-80 flex-col border-l border-slate-200 bg-white">
+    <aside className="flex w-80 flex-col border-l border-white/[0.06] bg-surface-1">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-        <Radio className="h-4 w-4 text-brand-500" />
-        <h3 className="text-sm font-semibold text-slate-700">Agent Chatter</h3>
+      <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-3">
+        <Radio className="h-4 w-4 text-brand-400" />
+        <h3 className="text-sm font-semibold text-slate-200">Agent Chatter</h3>
         <span className="ml-auto badge-blue">{messages.length}</span>
       </div>
 
       {/* Messages */}
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <p className="text-center text-xs text-slate-400 mt-8">
+          <p className="text-center text-xs text-slate-500 mt-8">
             Agent communication will appear here as the pipeline processes files.
           </p>
         )}
@@ -39,7 +39,7 @@ export function AgentChatter({ messages }: AgentChatterProps) {
             <div
               key={msg.message_id}
               className={`rounded-xl border p-3 transition-all duration-300 ${
-                isThinking ? 'border-brand-200 bg-brand-50/50 animate-thinking' : 'border-slate-100 bg-white'
+                isThinking ? 'border-brand-500/30 bg-brand-500/10 animate-thinking' : 'border-white/[0.06] bg-surface-2'
               }`}
             >
               {/* Agent avatar row */}
@@ -52,14 +52,14 @@ export function AgentChatter({ messages }: AgentChatterProps) {
                 <span className={`text-xs font-medium ${senderStyle.text}`}>
                   {formatAgentName(msg.sender)}
                 </span>
-                <span className="ml-auto text-[10px] text-slate-300">
+                <span className="ml-auto text-[10px] text-slate-600">
                   {formatTime(msg.timestamp)}
                 </span>
               </div>
 
               {/* Message content */}
-              <p className="text-xs text-slate-600 leading-relaxed">
-                <span className="font-medium text-slate-400">→ {formatAgentName(msg.receiver)}: </span>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                <span className="font-medium text-slate-500">→ {formatAgentName(msg.receiver)}: </span>
                 {formatPayload(msg)}
               </p>
 

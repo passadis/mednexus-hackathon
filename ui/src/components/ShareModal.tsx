@@ -45,18 +45,18 @@ export function ShareModal({ patientId, episodeId, episodeLabel, onClose }: Shar
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-white shadow-2xl">
+      <div className="w-full max-w-md mx-4 rounded-2xl bg-surface-2 shadow-2xl border border-white/[0.06]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
           <div className="flex items-center gap-2">
-            <Share2 className="h-5 w-5 text-brand-600" />
-            <h3 className="text-lg font-bold text-slate-800">Share with Patient</h3>
+            <Share2 className="h-5 w-5 text-brand-400" />
+            <h3 className="text-lg font-bold text-white">Share with Patient</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             title="Close"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/5 hover:text-slate-300"
           >
             <X className="h-5 w-5" />
           </button>
@@ -64,14 +64,14 @@ export function ShareModal({ patientId, episodeId, episodeLabel, onClose }: Shar
 
         {/* Body */}
         <div className="px-6 py-5">
-          <div className="mb-4 rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-400">Episode</p>
-            <p className="text-sm font-medium text-slate-700">{episodeLabel}</p>
+          <div className="mb-4 rounded-xl bg-white/5 p-3">
+            <p className="text-xs text-slate-500">Episode</p>
+            <p className="text-sm font-medium text-slate-200">{episodeLabel}</p>
           </div>
 
           {!token ? (
             <div className="text-center">
-              <p className="mb-4 text-sm text-slate-500">
+              <p className="mb-4 text-sm text-slate-400">
                 Generate a secure link the patient can use to view their results, chat with an AI assistant, or speak with a voice companion.
               </p>
               {error && (
@@ -99,7 +99,7 @@ export function ShareModal({ patientId, episodeId, episodeLabel, onClose }: Shar
           ) : (
             <div className="space-y-4">
               {/* QR Code */}
-              <div className="flex justify-center rounded-xl bg-white p-4 ring-1 ring-slate-100">
+              <div className="flex justify-center rounded-xl bg-white p-4 ring-1 ring-white/10">
                 <QRCode value={portalUrl} size={180} level="M" />
               </div>
 
@@ -110,15 +110,16 @@ export function ShareModal({ patientId, episodeId, episodeLabel, onClose }: Shar
                   readOnly
                   value={portalUrl}
                   placeholder="Portal link will appear here"
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 focus:outline-none"
+                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-slate-300 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={handleCopy}
+                  aria-label={copied ? 'Link copied' : 'Copy portal link'}
                   className={`shrink-0 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                     copied
-                      ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-brand-50 text-brand-600 hover:bg-brand-100'
+                      ? 'bg-emerald-500/15 text-emerald-400'
+                      : 'bg-brand-500/15 text-brand-400 hover:bg-brand-500/25'
                   }`}
                 >
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

@@ -80,10 +80,10 @@ export function AgentStepper({ episode }: { episode: Episode }) {
             <div
               className={`relative flex h-9 w-9 items-center justify-center rounded-full text-sm
                 ${state === 'completed'
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
+                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
                   : state === 'active'
-                    ? 'bg-brand-500 text-white shadow-md shadow-brand-200'
-                    : 'bg-slate-100 text-slate-400 border border-slate-200'
+                    ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
+                    : 'bg-white/5 text-slate-500 border border-white/10'
                 }`}
             >
               {state === 'completed' ? '✓' : step.icon}
@@ -95,17 +95,17 @@ export function AgentStepper({ episode }: { episode: Episode }) {
             <span
               className={`text-[10px] font-semibold leading-tight text-center
                 ${state === 'completed'
-                  ? 'text-emerald-600'
+                  ? 'text-emerald-400'
                   : state === 'active'
-                    ? 'text-brand-600'
-                    : 'text-slate-400'
+                    ? 'text-brand-400'
+                    : 'text-slate-500'
                 }`}
             >
               {step.label}
             </span>
             {/* Sub-detail */}
             {step.detail && (
-              <span className="text-[9px] text-slate-400 leading-tight text-center">
+              <span className="text-[9px] text-slate-500 leading-tight text-center">
                 {step.detail}
               </span>
             )}
@@ -118,7 +118,7 @@ export function AgentStepper({ episode }: { episode: Episode }) {
                 className={`h-[2px] w-full rounded-full transition-colors duration-500
                   ${i < (STATUS_TO_ACTIVE_STEP[episode.status] ?? 0)
                     ? 'bg-emerald-400'
-                    : 'bg-slate-200'
+                    : 'bg-white/10'
                   }`}
               />
             </div>

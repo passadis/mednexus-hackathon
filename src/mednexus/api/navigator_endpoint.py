@@ -37,6 +37,7 @@ Rules:
 - If the user mentions a specific patient ID such as P145, always scope retrieval results to that patient unless they explicitly ask to compare across patients.
 - When the user asks to open a case, call open_case.
 - For questions like "today's X-rays", use list_recent_cases with date_scope="today" and modality="radiology_image".
+- Only pass date_scope="today" when the user explicitly says "today". For "latest", "most recent", or no time qualifier, use date_scope="all" with top=1.
 - For broad concepts like injuries, respiratory issues, or elbow pain, use search_cases_by_topic.
 - Keep replies plain text, not markdown-heavy formatting.
 """
@@ -127,7 +128,7 @@ def _modality_matches(ep: Episode, modality: str | None) -> bool:
 
 
 async def _exec_list_recent_cases(
-    date_scope: str = "today",
+    date_scope: str = "all",
     modality: str | None = None,
     status: str | None = None,
     patient_id: str | None = None,
@@ -269,7 +270,7 @@ def _build_navigator_tools(
     results_ref: dict[str, Any],
 ) -> list[FunctionTool]:
     async def list_recent_cases(
-        date_scope: str = "today",
+        date_scope: str = "all",
         modality: str | None = None,
         status: str | None = None,
         patient_id: str | None = None,

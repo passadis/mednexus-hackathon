@@ -102,11 +102,11 @@ export interface A2AMessage {
 
 // Agent roles used for avatar coloring
 export const AGENT_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  orchestrator: { bg: 'bg-brand-100', text: 'text-brand-700', icon: '🎯' },
-  clinical_sorter: { bg: 'bg-amber-100', text: 'text-amber-700', icon: '📋' },
-  vision_specialist: { bg: 'bg-purple-100', text: 'text-purple-700', icon: '👁️' },
-  patient_historian: { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: '📚' },
-  diagnostic_synthesis: { bg: 'bg-rose-100', text: 'text-rose-700', icon: '🧬' },
+  orchestrator: { bg: 'bg-brand-500/20', text: 'text-brand-400', icon: '🎯' },
+  clinical_sorter: { bg: 'bg-amber-500/20', text: 'text-amber-400', icon: '📋' },
+  vision_specialist: { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: '👁️' },
+  patient_historian: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', icon: '📚' },
+  diagnostic_synthesis: { bg: 'bg-rose-500/20', text: 'text-rose-400', icon: '🧬' },
 };
 
 // ── Portal Types ────────────────────────────────────────────

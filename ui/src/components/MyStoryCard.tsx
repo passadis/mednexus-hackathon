@@ -24,28 +24,28 @@ const QUESTIONS = [
     label: 'How do you prefer to be addressed?',
     icon: User,
     color: 'text-brand-500',
-    bg: 'bg-brand-50',
+    bg: 'bg-brand-500/15',
   },
   {
     key: 'brings_joy' as const,
     label: 'What brings you joy?',
     icon: Heart,
-    color: 'text-pink-500',
-    bg: 'bg-pink-50',
+    color: 'text-pink-400',
+    bg: 'bg-pink-500/15',
   },
   {
     key: 'care_team_needs_to_know' as const,
     label: 'What does your care team need to know about you?',
     icon: Stethoscope,
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-50',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/15',
   },
   {
     key: 'brings_peace' as const,
     label: 'What brings you peace or comfort?',
     icon: Feather,
-    color: 'text-amber-500',
-    bg: 'bg-amber-50',
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/15',
   },
 ];
 
@@ -106,12 +106,12 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
   if (!exists && !editing) {
     return (
       <div className="card card-hover mb-5 flex items-center gap-4 py-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15">
           <BookOpen className="h-5 w-5 text-amber-400" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-slate-700">My Story</h3>
-          <p className="text-xs text-slate-400">
+          <h3 className="text-sm font-semibold text-slate-200">My Story</h3>
+          <p className="text-xs text-slate-500">
             Capture what matters most — preferences, joys, and comfort — so the care team can connect on a human level.
           </p>
         </div>
@@ -125,14 +125,14 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
   /* ── Editing Modal ─────────────────────────────────── */
   if (editing) {
     return (
-      <div className="card mb-5 border-2 border-brand-200">
+      <div className="card mb-5 border-2 border-brand-500/30">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-brand-500" />
-            <h3 className="text-sm font-semibold text-slate-800">My Story</h3>
+            <BookOpen className="h-4 w-4 text-brand-400" />
+            <h3 className="text-sm font-semibold text-white">My Story</h3>
           </div>
-          <button onClick={() => setEditing(false)} title="Close" className="rounded p-1 hover:bg-slate-100">
-            <X className="h-4 w-4 text-slate-400" />
+          <button onClick={() => setEditing(false)} title="Close" className="rounded p-1 hover:bg-white/5">
+            <X className="h-4 w-4 text-slate-500" />
           </button>
         </div>
 
@@ -141,12 +141,12 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
             const Icon = q.icon;
             return (
               <div key={q.key}>
-                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
                   <Icon className={`h-3 w-3 ${q.color}`} />
                   {q.label}
                 </label>
                 <textarea
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 placeholder:text-slate-300 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand-500/50 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                   rows={2}
                   placeholder="Type here…"
                   value={draft[q.key]}
@@ -160,10 +160,10 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
         <div className="mt-3 flex items-center justify-between">
           {/* Recorded-by selector */}
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-500">Recorded by</label>
+            <label className="text-xs font-medium text-slate-400">Recorded by</label>
             <select
               aria-label="Recorded by"
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300 focus:border-brand-500/50 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
               value={draft.recorded_by}
               onChange={(e) => setDraft({ ...draft, recorded_by: e.target.value })}
             >
@@ -190,14 +190,14 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
     <div className="card card-hover mb-5">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
-            <BookOpen className="h-3.5 w-3.5 text-amber-500" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/15">
+            <BookOpen className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <h3 className="text-sm font-semibold text-slate-800">My Story</h3>
+          <h3 className="text-sm font-semibold text-white">My Story</h3>
         </div>
         <button
           onClick={openEditor}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-white/5 hover:text-slate-300"
         >
           <Edit3 className="h-3 w-3" /> Edit
         </button>
@@ -212,9 +212,9 @@ export function MyStoryCard({ patientId }: MyStoryCardProps) {
             <div key={q.key} className={`rounded-lg ${q.bg} px-2.5 py-2`}>
               <div className="mb-0.5 flex items-center gap-1">
                 <Icon className={`h-3 w-3 ${q.color}`} />
-                <span className="text-[11px] font-medium text-slate-500">{q.label}</span>
+                <span className="text-[11px] font-medium text-slate-400">{q.label}</span>
               </div>
-              <p className="text-xs leading-relaxed text-slate-700">{value}</p>
+              <p className="text-xs leading-relaxed text-slate-300">{value}</p>
             </div>
           );
         })}

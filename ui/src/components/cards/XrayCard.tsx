@@ -23,19 +23,19 @@ export function XrayCard({ findings, ingestedFiles = [] }: XrayCardProps) {
   return (
     <div className="card">
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50">
-          <Image className="h-4 w-4 text-purple-600" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/15">
+          <Image className="h-4 w-4 text-purple-400" />
         </div>
-        <h3 className="text-sm font-semibold text-slate-700">X-ray Analysis</h3>
+        <h3 className="text-sm font-semibold text-slate-200">X-ray Analysis</h3>
         {findings.length > 0 && (
           <span className="ml-auto badge-purple">{findings.length} findings</span>
         )}
       </div>
 
       {!latest ? (
-        <div className="flex h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50">
-          <Eye className="mb-2 h-8 w-8 text-slate-300" />
-          <p className="text-xs text-slate-400">No imaging analysis yet</p>
+        <div className="flex h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02]">
+          <Eye className="mb-2 h-8 w-8 text-slate-600" />
+          <p className="text-xs text-slate-500">No imaging analysis yet</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -79,18 +79,18 @@ export function XrayCard({ findings, ingestedFiles = [] }: XrayCardProps) {
                 {new Date(latest.timestamp).toLocaleString()}
               </span>
             </div>
-            <p className="text-sm leading-relaxed text-slate-600">{String(latest.summary)}</p>
+            <p className="text-sm leading-relaxed text-slate-300">{String(latest.summary)}</p>
           </div>
 
           {/* Structured details */}
           {!!latest.details?.region && (
-            <div className="rounded-lg bg-purple-50/50 p-3">
-              <p className="text-xs text-slate-500">
+            <div className="rounded-lg bg-purple-500/10 p-3">
+              <p className="text-xs text-slate-400">
                 <span className="font-medium">Region:</span>{' '}
                 {String(latest.details.region)}
               </p>
               {typeof latest.details.impression === 'string' && (
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                   <span className="font-medium">Impression:</span>{' '}
                   {latest.details.impression}
                 </p>

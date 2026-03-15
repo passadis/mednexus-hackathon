@@ -31,10 +31,10 @@ export function PatientPortal({ token }: PatientPortalProps) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-brand-50 to-white">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-surface-1 to-surface-0">
         <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-brand-500" />
-          <p className="mt-3 text-sm text-slate-400">Loading your results...</p>
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-brand-400" />
+          <p className="mt-3 text-sm text-slate-500">Loading your results...</p>
         </div>
       </div>
     );
@@ -42,13 +42,13 @@ export function PatientPortal({ token }: PatientPortalProps) {
 
   if (error || !ctx) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-brand-50 to-white p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-surface-1 to-surface-0 p-6">
         <div className="text-center max-w-sm">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/15">
             <Heart className="h-8 w-8 text-red-400" />
           </div>
-          <h2 className="text-lg font-bold text-slate-800">Link Expired or Invalid</h2>
-          <p className="mt-2 text-sm text-slate-500">{error || 'This portal link is no longer valid. Please ask your healthcare provider for a new link.'}</p>
+          <h2 className="text-lg font-bold text-white">Link Expired or Invalid</h2>
+          <p className="mt-2 text-sm text-slate-400">{error || 'This portal link is no longer valid. Please ask your healthcare provider for a new link.'}</p>
         </div>
       </div>
     );
@@ -61,17 +61,17 @@ export function PatientPortal({ token }: PatientPortalProps) {
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-brand-50 to-white">
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-surface-1 to-surface-0">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-brand-100 bg-white/80 backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-white/[0.06] bg-surface-1/80 backdrop-blur-md">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700">
               <Heart className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-slate-800">MedNexus Patient Portal</h1>
-              <p className="text-xs text-slate-400">
+              <h1 className="text-sm font-bold text-white">MedNexus Patient Portal</h1>
+              <p className="text-xs text-slate-500">
                 {ctx.patient_name} — {ctx.episode_label}
               </p>
             </div>
@@ -80,7 +80,7 @@ export function PatientPortal({ token }: PatientPortalProps) {
       </header>
 
       {/* Tabs */}
-      <div className="sticky top-[61px] z-10 border-b border-slate-100 bg-white/80 backdrop-blur-md">
+      <div className="sticky top-[61px] z-10 border-b border-white/[0.06] bg-surface-1/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl">
           {([
             { key: 'summary', label: 'Results', icon: Heart },
@@ -93,8 +93,8 @@ export function PatientPortal({ token }: PatientPortalProps) {
               onClick={() => setTab(key)}
               className={`flex flex-1 items-center justify-center gap-1.5 px-4 py-3 text-sm font-medium transition ${
                 tab === key
-                  ? 'border-b-2 border-brand-600 text-brand-600'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'border-b-2 border-brand-400 text-brand-400'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -112,9 +112,9 @@ export function PatientPortal({ token }: PatientPortalProps) {
       </div>
 
       {/* Disclaimer */}
-      <footer className="border-t border-slate-100 bg-white/60 backdrop-blur-sm">
+      <footer className="border-t border-white/[0.06] bg-surface-1/60 backdrop-blur-sm">
         <div className="mx-auto max-w-2xl px-4 py-3">
-          <p className="text-center text-[10px] text-slate-400 leading-relaxed">
+          <p className="text-center text-[10px] text-slate-600 leading-relaxed">
             This information is provided for your reference. It does not replace professional medical advice.
             Always consult your healthcare provider for medical decisions.
           </p>
@@ -130,15 +130,15 @@ function SummaryTab({ ctx, episodeDate }: { ctx: PortalContext; episodeDate: str
   return (
     <div className="space-y-4">
       {/* Visit Info */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <div className="rounded-2xl bg-surface-2 p-5 shadow-sm ring-1 ring-white/10">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-400">Visit Date</p>
-            <p className="text-sm font-semibold text-slate-700">{episodeDate}</p>
+            <p className="text-xs text-slate-500">Visit Date</p>
+            <p className="text-sm font-semibold text-slate-200">{episodeDate}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-400">Reviewed by</p>
-            <p className="text-sm font-semibold text-emerald-600">{ctx.approved_by || 'Pending'}</p>
+            <p className="text-xs text-slate-500">Reviewed by</p>
+            <p className="text-sm font-semibold text-emerald-400">{ctx.approved_by || 'Pending'}</p>
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
@@ -149,21 +149,21 @@ function SummaryTab({ ctx, episodeDate }: { ctx: PortalContext; episodeDate: str
       </div>
 
       {/* Summary */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-        <h3 className="mb-3 text-sm font-bold text-slate-800">Your Results</h3>
-        <div className="text-sm leading-relaxed text-slate-600 whitespace-pre-line">
+      <div className="rounded-2xl bg-surface-2 p-5 shadow-sm ring-1 ring-white/10">
+        <h3 className="mb-3 text-sm font-bold text-white">Your Results</h3>
+        <div className="text-sm leading-relaxed text-slate-300 whitespace-pre-line">
           {ctx.plain_summary}
         </div>
       </div>
 
       {/* Recommendations */}
       {ctx.recommendations.length > 0 && (
-        <div className="rounded-2xl bg-brand-50 p-5 ring-1 ring-brand-100">
-          <h3 className="mb-3 text-sm font-bold text-brand-800">Recommendations</h3>
+        <div className="rounded-2xl bg-brand-500/15 p-5 ring-1 ring-brand-500/20">
+          <h3 className="mb-3 text-sm font-bold text-brand-300">Recommendations</h3>
           <ul className="space-y-2">
             {ctx.recommendations.map((r, i) => (
-              <li key={i} className="flex gap-2 text-sm text-brand-700">
-                <span className="mt-0.5 text-brand-400">•</span>
+              <li key={i} className="flex gap-2 text-sm text-brand-300">
+                <span className="mt-0.5 text-brand-500">•</span>
                 {r}
               </li>
             ))}
@@ -220,7 +220,7 @@ function ChatTab({ token }: { token: string }) {
       <div className="flex-1 space-y-3 pb-4">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <MessageCircle className="mx-auto h-10 w-10 text-slate-200" />
+            <MessageCircle className="mx-auto h-10 w-10 text-slate-600" />
             <p className="mt-2 text-sm text-slate-400">
               Ask me anything about your results. I'm here to help!
             </p>
@@ -235,7 +235,7 @@ function ChatTab({ token }: { token: string }) {
               className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
                 m.role === 'user'
                   ? 'bg-brand-600 text-white'
-                  : 'bg-white text-slate-700 shadow-sm ring-1 ring-slate-100'
+                  : 'bg-surface-2 text-slate-300 shadow-sm ring-1 ring-white/10'
               }`}
             >
               {m.content}
@@ -244,11 +244,11 @@ function ChatTab({ token }: { token: string }) {
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
+            <div className="rounded-2xl bg-surface-2 px-4 py-3 shadow-sm ring-1 ring-white/10">
               <div className="flex gap-1">
-                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300" />
-                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:150ms]" />
-                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:300ms]" />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-500" />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-500 [animation-delay:150ms]" />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-slate-500 [animation-delay:300ms]" />
               </div>
             </div>
           </div>
@@ -257,7 +257,7 @@ function ChatTab({ token }: { token: string }) {
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="sticky bottom-0 flex gap-2 bg-gradient-to-t from-white pt-4">
+      <form onSubmit={sendMessage} className="sticky bottom-0 flex gap-2 bg-gradient-to-t from-surface-0 pt-4">
         <input
           type="text"
           value={input}
@@ -445,7 +445,7 @@ function VoiceTab({ token }: { token: string }) {
   return (
     <div className="flex flex-col items-center gap-6 py-8">
       <div className="text-center">
-        <h3 className="text-lg font-bold text-slate-800">Voice Assistant</h3>
+        <h3 className="text-lg font-bold text-white">Voice Assistant</h3>
         <p className="mt-1 text-sm text-slate-400">
           Tap the microphone and ask about your results
         </p>
@@ -456,12 +456,13 @@ function VoiceTab({ token }: { token: string }) {
         type="button"
         onClick={status === 'active' ? stopVoice : startVoice}
         disabled={status === 'connecting'}
+        aria-label={status === 'active' ? 'Stop voice conversation' : 'Start voice conversation'}
         className={`flex h-24 w-24 items-center justify-center rounded-full shadow-lg transition-all duration-300 ${
           status === 'active'
-            ? 'bg-red-500 text-white animate-pulse shadow-red-200 scale-110'
+            ? 'bg-red-500 text-white animate-pulse shadow-red-500/30 scale-110'
             : status === 'connecting'
-              ? 'bg-brand-200 text-brand-600'
-              : 'bg-brand-600 text-white hover:bg-brand-700 hover:scale-105 shadow-brand-200'
+              ? 'bg-brand-500/30 text-brand-400'
+              : 'bg-brand-600 text-white hover:bg-brand-700 hover:scale-105 shadow-brand-500/30'
         }`}
       >
         {status === 'connecting' ? (
@@ -473,7 +474,7 @@ function VoiceTab({ token }: { token: string }) {
         )}
       </button>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         {status === 'idle' && 'Tap to start'}
         {status === 'connecting' && 'Connecting...'}
         {status === 'active' && 'Listening — tap to stop'}
@@ -482,13 +483,13 @@ function VoiceTab({ token }: { token: string }) {
 
       {/* Transcript */}
       {transcript.length > 0 && (
-        <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-          <p className="mb-2 text-xs font-semibold text-slate-500">Conversation</p>
+        <div className="w-full max-w-md rounded-2xl bg-surface-2 p-4 shadow-sm ring-1 ring-white/10">
+          <p className="mb-2 text-xs font-semibold text-slate-400">Conversation</p>
           <div className="max-h-60 space-y-2 overflow-y-auto">
             {transcript.map((line, i) => (
               <p
                 key={i}
-                className={`text-sm ${line.startsWith('[You]') ? 'text-brand-600 font-medium' : 'text-slate-600'}`}
+                className={`text-sm ${line.startsWith('[You]') ? 'text-brand-400 font-medium' : 'text-slate-400'}`}
               >
                 {line}
               </p>

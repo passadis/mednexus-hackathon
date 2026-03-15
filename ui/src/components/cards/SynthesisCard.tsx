@@ -93,15 +93,15 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
   return (
     <div className="card lg:col-span-2 xl:col-span-1">
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50">
-          <Brain className="h-4 w-4 text-rose-600" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/15">
+          <Brain className="h-4 w-4 text-rose-400" />
         </div>
-        <h3 className="text-sm font-semibold text-slate-700">Synthesis Report</h3>
+        <h3 className="text-sm font-semibold text-slate-200">Synthesis Report</h3>
         {synthesis && !isApproved && !editing && (
           <button
             type="button"
             onClick={startEditing}
-            className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            className="ml-auto flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:bg-white/5 hover:text-slate-200"
             title="Edit before sign-off"
           >
             <Pencil className="h-3 w-3" /> Edit
@@ -120,7 +120,7 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
             <button
               type="button"
               onClick={cancelEditing}
-              className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-50"
+              className="flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:bg-white/5"
             >
               <X className="h-3 w-3" /> Cancel
             </button>
@@ -129,10 +129,10 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
       </div>
 
       {!synthesis ? (
-        <div className="flex h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50">
-          <Brain className="mb-2 h-8 w-8 text-slate-300" />
-          <p className="text-xs text-slate-400">Awaiting cross-modality analysis</p>
-          <p className="mt-1 text-[10px] text-slate-300">
+        <div className="flex h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02]">
+          <Brain className="mb-2 h-8 w-8 text-slate-600" />
+          <p className="text-xs text-slate-500">Awaiting cross-modality analysis</p>
+          <p className="mt-1 text-[10px] text-slate-600">
             Upload imaging + clinical records to trigger synthesis
           </p>
         </div>
@@ -146,27 +146,27 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
                 onChange={e => setEditSummary(e.target.value)}
                 rows={4}
                 placeholder="Synthesis summary"
-                className="w-full rounded-lg border border-slate-300 p-2 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
+                className="w-full rounded-lg border border-white/10 bg-white/5 p-2 text-sm text-slate-200 focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/30"
               />
             ) : (
-              <p className="text-sm leading-relaxed text-slate-600">{synthesis.summary}</p>
+              <p className="text-sm leading-relaxed text-slate-300">{synthesis.summary}</p>
             )}
           </div>
 
           {/* Cross-modality notes */}
           {(synthesis.cross_modality_notes || editing) && (
-            <div className="rounded-xl bg-amber-50/60 p-3 border border-amber-100">
-              <p className="mb-1 text-xs font-semibold text-amber-700">Cross-Modality Notes</p>
+            <div className="rounded-xl bg-amber-500/10 p-3 border border-amber-500/20">
+              <p className="mb-1 text-xs font-semibold text-amber-400">Cross-Modality Notes</p>
               {editing ? (
                 <textarea
                   value={editNotes}
                   onChange={e => setEditNotes(e.target.value)}
                   rows={3}
                   placeholder="Cross-modality notes"
-                  className="w-full rounded-lg border border-amber-200 bg-white p-2 text-xs text-amber-800 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+                  className="w-full rounded-lg border border-amber-500/20 bg-white/5 p-2 text-xs text-amber-300 focus:border-amber-500/40 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
                 />
               ) : (
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p className="text-xs text-amber-300 leading-relaxed">
                   {synthesis.cross_modality_notes}
                 </p>
               )}
@@ -176,16 +176,16 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
           {/* Discrepancies */}
           {synthesis.discrepancies.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
+              <p className="text-xs font-semibold text-red-400 flex items-center gap-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Discrepancies ({synthesis.discrepancies.length})
               </p>
               {synthesis.discrepancies.map((d, i) => (
                 <div
                   key={i}
-                  className="rounded-lg border border-red-100 bg-red-50/50 p-2.5"
+                  className="rounded-lg border border-red-500/20 bg-red-500/10 p-2.5"
                 >
-                  <p className="text-xs text-red-700">{d.description}</p>
+                  <p className="text-xs text-red-400">{d.description}</p>
                   <span className="mt-1 badge-red">{d.severity}</span>
                 </div>
               ))}
@@ -202,12 +202,12 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
                   onChange={e => setEditRecs(e.target.value)}
                   rows={4}
                   placeholder="One recommendation per line"
-                  className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 p-2 text-xs text-slate-300 focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/30"
                 />
               ) : (
                 <ul className="space-y-1.5">
                   {synthesis.recommendations.map((rec, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                    <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
                       <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-brand-500" />
                       {rec}
                     </li>
@@ -218,7 +218,7 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
           )}
 
           {/* Metadata */}
-          <div className="border-t border-slate-100 pt-2">
+          <div className="border-t border-white/[0.06] pt-2">
             <p className="text-[10px] text-slate-400">
               Generated by {synthesis.generated_by} at{' '}
               {new Date(synthesis.generated_at).toLocaleString()}
@@ -227,11 +227,11 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
 
           {/* ── Phase 3: Human-in-the-Loop MD Sign-Off ────── */}
           {isApproved ? (
-            <div className="mt-4 flex items-center gap-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
-              <ShieldCheck className="h-6 w-6 text-emerald-600 shrink-0" />
+            <div className="mt-4 flex items-center gap-3 rounded-xl border-2 border-emerald-500/30 bg-emerald-500/10 p-4">
+              <ShieldCheck className="h-6 w-6 text-emerald-400 shrink-0" />
               <div>
-                <p className="text-sm font-bold text-emerald-700">Approved &amp; Signed Off</p>
-                <p className="text-xs text-emerald-600">
+                <p className="text-sm font-bold text-emerald-300">Approved &amp; Signed Off</p>
+                <p className="text-xs text-emerald-400">
                   By {displayApprovedBy} on{' '}
                   {displayApprovedAt ? new Date(displayApprovedAt).toLocaleString() : '—'}
                 </p>
@@ -242,10 +242,10 @@ export function SynthesisCard({ synthesis, patientId, episodeId, approvedBy, app
               type="button"
               onClick={handleApprove}
               disabled={isApproving}
-              className="mt-4 w-full rounded-xl bg-brand-600 px-6 py-4 text-center text-base
-                         font-bold text-white shadow-lg transition
-                         hover:bg-brand-700 hover:shadow-xl
-                         focus:outline-none focus:ring-4 focus:ring-brand-300
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 px-6 py-4 text-center text-base
+                         font-bold text-white shadow-lg shadow-brand-500/20 transition
+                         hover:shadow-brand-500/30 hover:shadow-xl
+                         focus:outline-none focus:ring-4 focus:ring-brand-500/30
                          disabled:cursor-wait disabled:opacity-60"
             >
               {isApproving ? 'Submitting…' : '✅ Approve and Sign-off by MD'}
