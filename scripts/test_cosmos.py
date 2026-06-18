@@ -38,7 +38,7 @@ async def main():
         print("5) Checking P003 ...")
         p003 = await m.get_context("P003")
         if p003:
-            print(f"   Found: {p003.patient.patient_id} / {p003.patient.name}")
+            print("   Found P003 context.")
         else:
             print("   NOT FOUND — needs re-seeding")
 
