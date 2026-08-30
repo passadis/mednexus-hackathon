@@ -288,11 +288,10 @@ def seed(base_url: str) -> None:
     if resp.status_code == 200:
         patients = resp.json()
         print(f"\nPatients in system: {len(patients)}")
-        for p in patients:
-            pid = p.get("patient", {}).get("patient_id", "?")
+        for index, p in enumerate(patients, start=1):
             status = p.get("status", "?")
             findings = len(p.get("findings", []))
-            print(f"  {pid}: status={status}, findings={findings}")
+            print(f"  Patient {index}: status={status}, findings={findings}")
 
 
 # ── CLI ──────────────────────────────────────────────────────

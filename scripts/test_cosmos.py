@@ -12,13 +12,13 @@ async def main():
         # 1. Test write
         print("1) Creating test patient 'PTEST' ...")
         ctx = await m.create_context("PTEST", "Test Patient")
-        print(f"   Created: {ctx.patient.patient_id} / {ctx.patient.name}")
+        print("   Created test patient.")
 
         # 2. Test point-read
         print("2) Reading back 'PTEST' ...")
         readback = await m.get_context("PTEST")
         if readback:
-            print(f"   Found: {readback.patient.patient_id} / {readback.patient.name}")
+            print("   Found.")
         else:
             print("   NOT FOUND — write may have silently failed")
 
@@ -26,8 +26,7 @@ async def main():
         print("3) Listing all contexts ...")
         contexts = await m.list_contexts(limit=10)
         print(f"   Found {len(contexts)} patients")
-        for c in contexts:
-            print(f"    - {c.patient.patient_id}: {c.patient.name}")
+        print("   Patient details omitted from output.")
 
         # 4. Cleanup test patient
         print("4) Deleting 'PTEST' ...")
@@ -38,7 +37,7 @@ async def main():
         print("5) Checking P003 ...")
         p003 = await m.get_context("P003")
         if p003:
-            print(f"   Found: {p003.patient.patient_id} / {p003.patient.name}")
+            print("   Found.")
         else:
             print("   NOT FOUND — needs re-seeding")
 
