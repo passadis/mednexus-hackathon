@@ -57,7 +57,7 @@ async def main():
         doc = await container.read_item(item="P003", partition_key="P003")
         print("  SUCCESS: document found")
     except exceptions.CosmosResourceNotFoundError:
-        print(f"  STILL NOT FOUND")
+        print("  STILL NOT FOUND")
     except Exception as e:
         print(f"  ERROR: {e}")
 
