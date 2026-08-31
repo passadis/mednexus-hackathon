@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from cryptography.fernet import Fernet
 
 from mednexus.mcp.audit import MCPAuditLogger
 from mednexus.mcp.clinical_gateway import (
@@ -26,7 +27,7 @@ class TestMCPAuditLogger:
         return tmp_path / "audit"
 
     def test_log_and_read(self, audit_dir: Path) -> None:
-        logger = MCPAuditLogger(log_dir=str(audit_dir))
+        logger = MCPAuditLogger(audit_dir=audit_dir, encryption_key=Fernet.generate_key())
         logger.log(
             operation="get_patient_records",
             agent_id="clinical_sorter",
@@ -44,7 +45,7 @@ class TestMCPAuditLogger:
         assert entry["success"] is True
 
     def test_multiple_entries_ordered_newest_first(self, audit_dir: Path) -> None:
-        logger = MCPAuditLogger(log_dir=str(audit_dir))
+        logger = MCPAuditLogger(audit_dir=audit_dir, encryption_key=Fernet.generate_key())
         for i in range(5):
             logger.log(
                 operation=f"op_{i}",

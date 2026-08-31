@@ -78,6 +78,7 @@ class Settings(BaseSettings):
         "http://localhost:80"
     )
     mcp_drop_folder: str = "./data/intake"
+    audit_log_encryption_key: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:

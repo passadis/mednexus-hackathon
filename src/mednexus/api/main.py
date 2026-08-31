@@ -17,6 +17,7 @@ from typing import Any
 import structlog
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from werkzeug.utils import secure_filename
 
 from mednexus.a2a import A2ABus, get_a2a_bus
 from mednexus.agents.clinical_sorter import ClinicalSorterAgent
@@ -405,16 +406,23 @@ async def upload_file(
         raise HTTPException(400, "Filename is required")
 
     # Prefix with patient_id if not already present
-    filename = file.filename
-    if not filename.upper().startswith(patient_id.upper()):
-        filename = f"{patient_id}_{filename}"
+    filename = secure_filename(file.filename)
+    if not filename:
+        raise HTTPException(400, "Filename is required")
+    safe_patient_id = secure_filename(patient_id)
+    if not safe_patient_id:
+        raise HTTPException(400, "Patient ID is required")
+    if not filename.upper().startswith(safe_patient_id.upper()):
+        filename = f"{safe_patient_id}_{filename}"
 
     content = await file.read()
 
     # Save to local drop-folder (always, for backup)
-    drop_folder = Path(settings.mcp_drop_folder)
+    drop_folder = Path(settings.mcp_drop_folder).resolve()
     drop_folder.mkdir(parents=True, exist_ok=True)
-    dest = drop_folder / filename
+    dest = (drop_folder / filename).resolve()
+    if dest.parent != drop_folder:
+        raise HTTPException(400, "Invalid filename")
     dest.write_bytes(content)
 
     # If Azure Blob MCP is configured, also upload to blob so agents can read
@@ -491,7 +499,11 @@ async def serve_image(filename: str):
 
     from fastapi.responses import Response
 
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    safe_filename = secure_filename(filename)
+    if not safe_filename or safe_filename != filename:
+        raise HTTPException(404, "Image not found")
+
+    ext = safe_filename.rsplit(".", 1)[-1].lower() if "." in safe_filename else ""
     media_map = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "bmp": "image/bmp"}
     content_type = media_map.get(ext, "application/octet-stream")
 
@@ -504,7 +516,7 @@ async def serve_image(filename: str):
                 settings.azure_storage_connection_string,
                 settings.azure_storage_container,
             ) as container:
-                blob = await container.download_blob(filename)
+                blob = await container.download_blob(safe_filename)
                 data = await blob.readall()
                 return Response(content=data, media_type=content_type)
         except Exception as exc:
@@ -520,7 +532,7 @@ async def serve_image(filename: str):
                 settings.azure_storage_container,
                 credential=cred,
             ) as container:
-                blob = await container.download_blob(filename)
+                blob = await container.download_blob(safe_filename)
                 data = await blob.readall()
             await cred.close()
             return Response(content=data, media_type=content_type)
@@ -528,7 +540,10 @@ async def serve_image(filename: str):
             logger.warning("blob_mi_image_fallback", filename=filename, error=str(exc))
 
     # Local fallback
-    local_path = Path(settings.mcp_drop_folder) / filename
+    drop_folder = Path(settings.mcp_drop_folder).resolve()
+    local_path = (drop_folder / safe_filename).resolve()
+    if local_path.parent != drop_folder:
+        raise HTTPException(404, "Image not found")
     if local_path.exists():
         return Response(content=local_path.read_bytes(), media_type=content_type)
 

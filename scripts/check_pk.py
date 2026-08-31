@@ -37,7 +37,7 @@ async def main():
         print(f"query(id='P003') -> Found {len(items)} docs")
         if items:
             print(f"  partition_key field: {items[0].get('partition_key', 'N/A')}")
-            print(f"  patient.patient_id: {items[0].get('patient', {}).get('patient_id', 'N/A')}")
+            print("  patient.patient_id: present")
     except Exception as e:
         print(f"query -> ERROR: {e}")
 
