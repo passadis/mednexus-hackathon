@@ -35,8 +35,10 @@ structlog>=24.2
 # ── Utilities ────────────────────────────────────────────
 python-dotenv>=1.0
 aiofiles>=24.1
+cryptography>=50.0.1
 pillow>=10.4
 PyPDF2>=3.0
+werkzeug>=3.1.8
 
 # ── MCP Protocol ─────────────────────────────────────────
 mcp>=1.0

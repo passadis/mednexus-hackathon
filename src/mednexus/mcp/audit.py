@@ -9,8 +9,8 @@ Clinical Data Gateway is logged with:
   - Success / failure result
 
 In production this would forward to Azure Monitor / Log Analytics.
-During development it writes structured JSON to both structlog and a
-local audit file for easy inspection.
+During development it writes minimal metadata to structlog and encrypted
+entries to a local audit file.
 """
 
 from __future__ import annotations
@@ -20,7 +20,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cryptography.fernet import Fernet
 import structlog
+
+from mednexus.config import settings
 
 logger = structlog.get_logger("mcp.audit")
 
@@ -30,10 +33,18 @@ _AUDIT_DIR = Path("data/audit")
 class MCPAuditLogger:
     """Structured audit trail for every MCP gateway interaction."""
 
-    def __init__(self, audit_dir: Path | str = _AUDIT_DIR) -> None:
+    def __init__(
+        self,
+        audit_dir: Path | str = _AUDIT_DIR,
+        encryption_key: str | bytes | None = None,
+    ) -> None:
         self._dir = Path(audit_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
         self._file = self._dir / "mcp_audit.jsonl"
+        key = encryption_key or settings.audit_log_encryption_key
+        if not key:
+            raise ValueError("AUDIT_LOG_ENCRYPTION_KEY must be configured")
+        self._cipher = Fernet(key.encode() if isinstance(key, str) else key)
 
     def log(
         self,
@@ -55,21 +66,26 @@ class MCPAuditLogger:
             "result_summary": result_summary,
             "success": success,
         }
-        # Structured log (goes to console / Azure Monitor)
+        # Do not send patient data or request parameters to console logs.
         logger.info(
             "mcp_audit",
-            **entry,
+            operation=operation,
+            success=success,
         )
-        # Append to local JSONL file (survives restarts, easy to grep)
-        with self._file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
+        # Append encrypted audit entries to local storage.
+        with self._file.open("ab") as f:
+            f.write(self._cipher.encrypt(json.dumps(entry).encode("utf-8")) + b"\n")
 
     def get_recent(self, limit: int = 100) -> list[dict[str, Any]]:
         """Read the last *limit* audit entries (newest-first)."""
         if not self._file.exists():
             return []
-        lines = self._file.read_text(encoding="utf-8").strip().splitlines()
-        entries = [json.loads(line) for line in lines[-limit:]]
+        lines = self._file.read_bytes().splitlines()
+        entries = [
+            json.loads(self._cipher.decrypt(line))
+            for line in lines[-limit:]
+            if line
+        ]
         entries.reverse()
         return entries
 

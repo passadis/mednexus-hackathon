@@ -55,9 +55,9 @@ async def main():
     print("\n\nVerification — point-read P003:")
     try:
         doc = await container.read_item(item="P003", partition_key="P003")
-        print(f"  SUCCESS: id={doc['id']}, patient_id={doc.get('patient_id')}")
+        print("  SUCCESS: document found")
     except exceptions.CosmosResourceNotFoundError:
-        print(f"  STILL NOT FOUND")
+        print("  STILL NOT FOUND")
     except Exception as e:
         print(f"  ERROR: {e}")
 
