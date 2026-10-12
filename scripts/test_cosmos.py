@@ -37,7 +37,7 @@ async def main():
         print("5) Checking P003 ...")
         p003 = await m.get_context("P003")
         if p003:
-            print("   Found.")
+            print("   Found P003 context.")
         else:
             print("   NOT FOUND — needs re-seeding")
 
